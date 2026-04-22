@@ -10,9 +10,12 @@
 #include "GamesEngineeringBase.h"
 #include <thread>
 #include <functional>
+#include <atomic>
 
 #define MAX_DEPTH_PATH_TRACE 5
 #define MIN_DEPTH_FOR_RUSSIAN_ROULETTE 3
+
+#define TILE_SIZE 32
 
 class RayTracer
 {
@@ -23,8 +26,8 @@ public:
 	MTRandom* samplers;
 	std::thread** threads;
 	int numProcs;
-	void init(Scene* _scene, GamesEngineeringBase::Window* _canvas)
-	{
+
+	void init(Scene* _scene, GamesEngineeringBase::Window* _canvas) {
 		scene = _scene;
 		canvas = _canvas;
 		film = new Film();
@@ -36,10 +39,11 @@ public:
 		samplers = new MTRandom[numProcs];
 		clear();
 	}
-	void clear()
-	{
+
+	void clear() {
 		film->clear();
 	}
+
 	Colour computeDirect(ShadingData shadingData, Sampler* sampler)
 	{
 		// Is surface is specular we cannot computing direct lighting
@@ -150,8 +154,8 @@ public:
 		}
 		return scene->background->evaluate(r.dir);
 	}
-	Colour albedo(Ray& r)
-	{
+
+	Colour albedo(Ray& r) {
 		IntersectionData intersection = scene->traverse(r);
 		ShadingData shadingData = scene->calculateShadingData(intersection, r);
 		if (shadingData.t < FLT_MAX)
@@ -164,24 +168,93 @@ public:
 		}
 		return scene->background->evaluate(r.dir);
 	}
-	Colour viewNormals(Ray& r)
-	{
+
+	Colour viewNormals(Ray& r) {
 		IntersectionData intersection = scene->traverse(r);
-		if (intersection.t < FLT_MAX)
-		{
+		if (intersection.t < FLT_MAX) {
 			ShadingData shadingData = scene->calculateShadingData(intersection, r);
 			return Colour(fabsf(shadingData.sNormal.x), fabsf(shadingData.sNormal.y), fabsf(shadingData.sNormal.z));
 		}
 		return Colour(0.0f, 0.0f, 0.0f);
 	}
-	void render()
-	{
+
+	void threadProcess(unsigned int tID, std::atomic<unsigned int> &tileID, unsigned int filmWidth, unsigned int filmHeight) {
+		unsigned int widthToComplete = filmWidth % TILE_SIZE;
+		unsigned int heightToComplete = filmHeight % TILE_SIZE;
+		unsigned int fakeWidth = filmWidth + widthToComplete;
+		unsigned int fakeHeight = filmHeight + heightToComplete;
+
+		unsigned int tilesPerRow = fakeWidth / TILE_SIZE;
+		unsigned int tilesPerColumn = fakeHeight / TILE_SIZE;
+		unsigned int lastTileID = (tilesPerRow * tilesPerColumn) - 1;
+		
+		while (true) {
+			unsigned int currTileID = tileID;
+			tileID++;
+
+			if (currTileID > lastTileID) return;
+
+			unsigned int xStart = (currTileID % tilesPerRow) * TILE_SIZE;
+			unsigned int yStart = (currTileID / tilesPerRow) * TILE_SIZE;
+
+			for (unsigned int y = yStart; y < yStart + TILE_SIZE; y++) {
+				if (y >= filmHeight) continue;
+
+				for (unsigned int x = xStart; x < xStart + TILE_SIZE; x++) {
+					if (x >= filmWidth) break;
+		
+					// float px = x + 0.5f;
+					// float py = y + 0.5f;
+
+					float px = x + samplers->next();
+					float py = y + samplers->next();
+					Ray ray = scene->camera.generateRay(px, py);
+					// Colour col = viewNormals(ray);
+					// Colour col = albedo(ray);
+
+					Colour pathThroughput(1.0f, 1.0f, 1.0f);
+
+					Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
+
+					//Colour col = direct(ray, &samplers[0]);
+					film->splat(px, py, col);
+				}
+			}
+
+			for (unsigned int y = yStart; y < yStart + TILE_SIZE; y++) {
+				if (y >= filmHeight) continue;
+				for (unsigned int x = xStart; x < xStart + TILE_SIZE; x++) {
+					if (x >= filmWidth) break;
+					unsigned char r, g, b;
+					film->tonemap(x, y, r, g, b);
+					canvas->draw(x, y, r, g, b);
+				}
+			}
+
+		}
+	}
+
+	void parallelRender() {
+		film->incrementSPP();
+
+		std::atomic<unsigned int> tileID(0);
+		unsigned int filmWidth = film->width;
+		unsigned int filmHeight = film->height;
+
+		for (int i=0; i<numProcs; i++) {
+			threads[i] = new std::thread(&RayTracer::threadProcess, this, i, std::ref(tileID), filmWidth, filmHeight);
+		}
+
+		for (int i=0; i<numProcs; i++) {
+			threads[i]->join();
+		}
+	}
+
+	void render() {
 
 		film->incrementSPP();
-		for (unsigned int y = 0; y < film->height; y++)
-		{
-			for (unsigned int x = 0; x < film->width; x++)
-			{
+		for (unsigned int y = 0; y < film->height; y++) {
+			for (unsigned int x = 0; x < film->width; x++) {
 				// float px = x + 0.5f;
 				// float py = y + 0.5f;
 
@@ -200,26 +273,24 @@ public:
 			}
 		}
 
-		for (unsigned int y = 0; y < film->height; y++)
-		{
-			for (unsigned int x = 0; x < film->width; x++)
-			{
+		for (unsigned int y = 0; y < film->height; y++) {
+			for (unsigned int x = 0; x < film->width; x++) {
 				unsigned char r, g, b;
 				film->tonemap(x, y, r, g, b);
 				canvas->draw(x, y, r, g, b);
 			}
 		}
 	}
-	int getSPP()
-	{
+
+	int getSPP() {
 		return film->SPP;
 	}
-	void saveHDR(std::string filename)
-	{
+
+	void saveHDR(std::string filename) {
 		film->save(filename);
 	}
-	void savePNG(std::string filename)
-	{
+
+	void savePNG(std::string filename) {
 		stbi_write_png(filename.c_str(), canvas->getWidth(), canvas->getHeight(), 3, canvas->getBackBuffer(), canvas->getWidth() * 3);
 	}
 };

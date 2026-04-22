@@ -34,11 +34,24 @@ public:
 class ShadingHelper
 {
 public:
+	
+	static float getCosThetaT(float cosTheta, float iorInt, float iorExt) {
+		float n = iorExt / iorInt;
+		float term = 1 - ((1 - (cosTheta * cosTheta)) / n * n);
+		return std::sqrtf(term);
+	}
+
 	static float fresnelDielectric(float cosTheta, float iorInt, float iorExt)
 	{
-		// Add code here
-		return 1.0f;
+		float n = iorExt / iorInt;
+		float cosThetaT = getCosThetaT(cosTheta, iorInt, iorExt);
+		float fParallel = (cosTheta - (n * cosThetaT)) / (cosTheta + (n * cosThetaT));
+		float fPerp = ((n * cosTheta) - cosThetaT) / ((n * cosTheta) + cosThetaT);
+
+		float fresnel = ((fParallel * fParallel) + (fPerp * fPerp)) / 2;
+		return fresnel;
 	}
+
 	static Colour fresnelConductor(float cosTheta, Colour ior, Colour k)
 	{
 		// Add code here

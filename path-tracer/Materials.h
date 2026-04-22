@@ -52,11 +52,28 @@ public:
 		return fresnel;
 	}
 
-	static Colour fresnelConductor(float cosTheta, Colour ior, Colour k)
-	{
-		// Add code here
-		return Colour(1.0f, 1.0f, 1.0f);
+	static float fresnelConductorParallelSqr(float cosTheta, float n, float k) {
+		float cosThetaSqr = (cosTheta * cosTheta);
+		float sinThetaSqr = 1 - cosThetaSqr;
+		float term1 = (((n * n) + (k * k)) * cosThetaSqr) - ((2 * n * cosTheta) + sinThetaSqr);
+		float term2 = (((n * n) + (k * k)) * cosThetaSqr) + ((2 * n * cosTheta) + sinThetaSqr);
+		return term1 / term2;
 	}
+
+	static float fresnelConductorPerpSqr(float cosTheta, float n, float k) {
+		float cosThetaSqr = (cosTheta * cosTheta);
+		float term1 = ((n * n) + (k * k)) - (2 * n * cosTheta) + cosThetaSqr;
+		float term2 = ((n * n) + (k * k)) + (2 * n * cosTheta) + cosThetaSqr;
+		return term1 / term2;
+	}
+
+	static Colour fresnelConductor(float cosTheta, Colour ior, Colour k) {
+		float r = (fresnelConductorParallelSqr(cosTheta, ior.r, k.r) + fresnelConductorPerpSqr(cosTheta, ior.r, k.r)) / 2;
+		float g = (fresnelConductorParallelSqr(cosTheta, ior.g, k.g) + fresnelConductorPerpSqr(cosTheta, ior.g, k.g)) / 2;
+		float b = (fresnelConductorParallelSqr(cosTheta, ior.b, k.b) + fresnelConductorPerpSqr(cosTheta, ior.b, k.b)) / 2;
+		return Colour(r, g, b);
+	}
+
 	static float lambdaGGX(Vec3 wi, float alpha)
 	{
 		// Add code here

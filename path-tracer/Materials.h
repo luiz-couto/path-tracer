@@ -85,10 +85,14 @@ public:
 		// Add code here
 		return 1.0f;
 	}
-	static float Dggx(Vec3 h, float alpha)
-	{
-		// Add code here
-		return 1.0f;
+
+	static float Dggx(Vec3 h, float alpha) {
+		float cosThetaM = h.z;
+		float alphaSqr = alpha * alpha;
+		float term = (cosThetaM * cosThetaM) * (alphaSqr - 1) + 1;
+
+		float D = alphaSqr / (M_PI * (term * term));
+		return D;
 	}
 };
 

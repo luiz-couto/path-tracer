@@ -62,35 +62,44 @@ public:
 		c.b = b * colour.b;
 		return c;
 	}
-	Colour operator/(const Colour& colour) const
-	{
+
+	Colour operator*(const float& num) const {
+		Colour c;
+		c.r = r * num;
+		c.g = g * num;
+		c.b = b * num;
+		return c;
+	}
+
+	Colour operator/(const Colour& colour) const {
 		Colour c;
 		c.r = r / colour.r;
 		c.g = g / colour.g;
 		c.b = b / colour.b;
 		return c;
 	}
-	Colour operator*(const float v) const
-	{
-		Colour c;
-		c.r = r * v;
-		c.g = g * v;
-		c.b = b * v;
-		return c;
-	}
-	Colour operator/(const float v) const
-	{
+
+	Colour operator/(const float v) const {
 		Colour c;
 		c.r = r / v;
 		c.g = g / v;
 		c.b = b / v;
 		return c;
 	}
+
 	float Lum()
 	{
 		return ((0.2126f * r) + (0.7152f * g) + (0.0722f * b));
 	}
 };
+
+Colour operator*(const float& num, const Colour& c) {
+    return c * num;
+}
+
+Colour operator/(const float& num, const Colour& c) {
+    return c / num;
+}
 
 class Vec3
 {

@@ -228,43 +228,67 @@ public:
 	Colour k;
 	float alpha;
 	ConductorBSDF() = default;
-	ConductorBSDF(Texture* _albedo, Colour _eta, Colour _k, float roughness)
-	{
+	ConductorBSDF(Texture* _albedo, Colour _eta, Colour _k, float roughness) {
 		albedo = _albedo;
 		eta = _eta;
 		k = _k;
 		alpha = 1.62142f * sqrtf(roughness);
 	}
-	Vec3 sample(const ShadingData& shadingData, Sampler* sampler, Colour& reflectedColour, float& pdf)
-	{
-		// Replace this with Conductor sampling code
-		Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
-		pdf = wi.z / M_PI;
-		reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
-		wi = shadingData.frame.toWorld(wi);
-		return wi;
+
+	Vec3 sample(const ShadingData& shadingData, Sampler* sampler, Colour& reflectedColour, float& pdf) {
+		float s1 = sampler->next();
+		float s2 = sampler->next();
+
+		float thetaM = (1 - s1) / ((s1 * ((alpha * alpha) - 1)) + 1);
+		thetaM = acosf(sqrtf(thetaM));
+		float phiM = 2 * M_PI * s2;
+
+		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
+
+
+		Vec3 wm = Vec3(sinf(thetaM) * cosf(phiM), sinf(thetaM) * sinf(phiM), cosf(thetaM));
+		Vec3 wi = -woLocal +  (wm * (2 * wm.dot(woLocal)));
+		pdf = (ShadingHelper::Dggx(wm, alpha) * cosf(thetaM)) / (4 * wm.dot(woLocal));
+		return shadingData.frame.toWorld(wi);
 	}
-	Colour evaluate(const ShadingData& shadingData, const Vec3& wi)
-	{
-		// Replace this with Conductor evaluation code
-		return albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
+
+	Colour evaluate(const ShadingData& shadingData, const Vec3& wi) {
+		Vec3 localWi = shadingData.frame.toLocal(wi);
+		Vec3 localWo = shadingData.frame.toLocal(shadingData.wo);
+
+		Vec3 h = (localWi + localWo).normalize();
+		float gWoWi = ShadingHelper::Gggx(localWi, localWo, alpha);
+		float dWm = ShadingHelper::Dggx(h, alpha);
+		Colour fresnel = ShadingHelper::fresnelConductor(localWo.z, eta, k);
+
+		Colour term1 = fresnel * gWoWi * dWm;
+		float term2 = 4 * localWo.z * localWi.z;
+		Colour brdf = term1 / term2;
+
+		return brdf * albedo->sample(shadingData.tu, shadingData.tv);
 	}
-	float PDF(const ShadingData& shadingData, const Vec3& wi)
-	{
-		// Replace this with Conductor PDF
-		Vec3 wiLocal = shadingData.frame.toLocal(wi);
-		return SamplingDistributions::cosineHemispherePDF(wiLocal);
+
+	float PDF(const ShadingData& shadingData, const Vec3& wi) {
+		Vec3 localWi = shadingData.frame.toLocal(wi);
+		Vec3 localWo = shadingData.frame.toLocal(shadingData.wo);
+
+		Vec3 h = (localWi + localWo).normalize();
+		float dWm = ShadingHelper::Dggx(h, alpha);
+		float cosThetaM = h.z;
+
+		float pdf = (dWm * cosThetaM) / (4 * localWo.dot(h));
+		return pdf;
 	}
-	bool isPureSpecular()
-	{
+
+	bool isPureSpecular() {
 		return false;
 	}
-	bool isTwoSided()
-	{
+
+	bool isTwoSided() {
 		return true;
 	}
-	float mask(const ShadingData& shadingData)
-	{
+
+	float mask(const ShadingData& shadingData) {
 		return albedo->sampleAlpha(shadingData.tu, shadingData.tv);
 	}
 };

@@ -86,10 +86,11 @@ public:
 		return lambda;
 	}
 
-	static float Gggx(Vec3 wi, Vec3 wo, float alpha)
-	{
-		// Add code here
-		return 1.0f;
+	static float Gggx(Vec3 wi, Vec3 wo, float alpha) {
+		float go = 1 / (1 + lambdaGGX(wo, alpha));
+		float gi = 1 / (1 + lambdaGGX(wi, alpha));
+
+		return go * gi;
 	}
 
 	static float Dggx(Vec3 h, float alpha) {

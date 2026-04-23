@@ -89,12 +89,14 @@ public:
 			return Colour(0.0f, 0.0f, 0.0f);
 		}
 
+		Colour aux = Colour(0.0f, 0.0f, 0.0f);
+
 		IntersectionData intersection = scene->traverse(r);
 		ShadingData shadingData = scene->calculateShadingData(intersection, r);
 		if (shadingData.t < FLT_MAX) {
 			if (shadingData.bsdf->isLight()) {
 				if (isSpecularBounce || depth == 0) {
-					return shadingData.bsdf->emit(shadingData, shadingData.wo);
+					aux = shadingData.bsdf->emit(shadingData, shadingData.wo);
 				}
 				else {
 					return Colour(0, 0, 0);
@@ -112,7 +114,7 @@ public:
 			Colour directLight = computeDirect(shadingData, sampler);
 			//Colour output = (directLight) * pathThroughput;
 
-			float cosTheta = std::max(worldDirection.dot(shadingData.sNormal), 0.0f);
+			float cosTheta = std::max(fabsf(worldDirection.dot(shadingData.sNormal)), 0.0f);
 			Colour bsdfValue = shadingData.bsdf->evaluate(shadingData, worldDirection);
 
 			Colour newThroughput = pathThroughput * bsdfValue * cosTheta / pdf;
@@ -122,7 +124,7 @@ public:
 				float qClamped = std::min(q, 1.0f);
 				float epsilon = sampler->next();
 				if (epsilon > qClamped) {
-					return directLight * pathThroughput;
+					return (aux + directLight) * pathThroughput;
 				}
 
 				newThroughput = newThroughput / qClamped;
@@ -132,7 +134,7 @@ public:
 			newRay.init(shadingData.x + (worldDirection * EPSILON), worldDirection);
 			Colour indirectLight = pathTrace(newRay, newThroughput, depth + 1, sampler, shadingData.bsdf->isPureSpecular());
 
-			return (indirectLight + directLight) * pathThroughput;
+			return (indirectLight + directLight + aux) * pathThroughput;
 		}
 
 		return pathThroughput * scene->background->evaluate(r.dir);

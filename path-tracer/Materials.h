@@ -75,11 +75,17 @@ public:
 		return Colour(r, g, b);
 	}
 
-	static float lambdaGGX(Vec3 wi, float alpha)
-	{
-		// Add code here
-		return 1.0f;
+	static float lambdaGGX(Vec3 wi, float alpha) {
+		float cosTheta = wi.z;
+		float cosThetaSqr = cosTheta * cosTheta;
+		float tanThetaSqr = (1 - cosThetaSqr) / cosThetaSqr;
+
+		float term = 1 + (alpha * alpha * tanThetaSqr);
+		float lambda = (std::sqrtf(term) - 1) / 2;
+
+		return lambda;
 	}
+
 	static float Gggx(Vec3 wi, Vec3 wo, float alpha)
 	{
 		// Add code here

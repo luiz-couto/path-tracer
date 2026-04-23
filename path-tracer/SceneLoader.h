@@ -135,7 +135,8 @@ void loadInstance(std::string sceneName, std::vector<Triangle>& meshTriangles, s
 		meshMaterials.push_back(material);
 	}
 	if (instance.material.find("bsdf").getValue("") == "plastic")
-	{
+	{	
+		std::cout << "Loading plastic material" << std::endl;
 		std::string filename = sceneName + "/" + instance.material.find("reflectance").getValue("");
 		float intIOR = instance.material.find("intIOR").getValue(1.33f);
 		float extIOR = instance.material.find("extIOR").getValue(1.0f);
@@ -144,7 +145,8 @@ void loadInstance(std::string sceneName, std::vector<Triangle>& meshTriangles, s
 		meshMaterials.push_back(material);
 	}
 	if (instance.material.find("bsdf").getValue("") == "dielectric")
-	{
+	{	
+		std::cout << "Loading dielectric material" << std::endl;
 		std::string filename = sceneName + "/" + instance.material.find("reflectance").getValue("");
 		float intIOR = instance.material.find("intIOR").getValue(1.33f);
 		float extIOR = instance.material.find("extIOR").getValue(1.0f);
@@ -161,6 +163,7 @@ void loadInstance(std::string sceneName, std::vector<Triangle>& meshTriangles, s
 	}
 	if (instance.material.find("bsdf").getValue("") == "conductor")
 	{
+		std::cout << "Loading conductor material" << std::endl;
 		std::string filename = sceneName + "/" + instance.material.find("reflectance").getValue("");
 		Colour eta;
 		Colour k;

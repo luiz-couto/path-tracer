@@ -96,7 +96,7 @@ public:
 		if (shadingData.t < FLT_MAX) {
 			if (shadingData.bsdf->isLight()) {
 				if (isSpecularBounce || depth == 0) {
-					aux = shadingData.bsdf->emit(shadingData, shadingData.wo);
+					return shadingData.bsdf->emit(shadingData, shadingData.wo);
 				}
 				else {
 					return Colour(0, 0, 0);

@@ -102,6 +102,11 @@ public:
 
 		Colour finalColor = shadingData.bsdf->evaluate(shadingData, sampledDirection) * emittedColour * resultGTerm;
 
+		if (pdf <= 0) {
+			std::cout << "PDF is zero or negative!" << std::endl;
+			return Colour(0.0f, 0.0f, 0.0f);
+		}
+
 		return finalColor / (pdf * pmf); // shall we do this or just divide by the pdf?
 		
 	}
@@ -140,6 +145,10 @@ public:
 
 			float cosTheta = std::max(fabsf(worldDirection.dot(shadingData.sNormal)), 0.0f);
 			Colour bsdfValue = shadingData.bsdf->evaluate(shadingData, worldDirection);
+
+			if (cosTheta < 1e-6f || pdf <= 0.0f) {
+				return directLight * pathThroughput;
+			}
 
 			Colour newThroughput = pathThroughput * bsdfValue * cosTheta / pdf;
 
@@ -243,6 +252,9 @@ public:
 					Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
 
 					//Colour col = direct(ray, &samplers[0]);
+					if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {
+						continue;
+					}
 					film->splat(px, py, col);
 				}
 			}

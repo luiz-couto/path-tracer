@@ -520,6 +520,15 @@ public:
 		// wis = shadingData.frame.toWorld(wis);
 		// return wis;
 
+		if (alpha < ALPHA_EPSILON) {
+			pdf = 1;
+			Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo).normalize();
+			Vec3 wi = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
+			wi = shadingData.frame.toWorld(wi).normalize();
+			reflectedColour = evaluate(shadingData, wi);
+			return wi;
+		}
+
 		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
 		float cosTheta = woLocal.z;
 
@@ -580,6 +589,13 @@ public:
 		//Replace this with Plastic evaluation code
 		//return albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
 
+		if (alpha < ALPHA_EPSILON) {
+			Vec3 localWi = shadingData.frame.toLocal(wi).normalize();
+			float cosTheta = fabsf(localWi.z);
+			float fresnel = ShadingHelper::fresnelDielectric(cosTheta, intIOR / extIOR);
+			return fresnel * albedo->sample(shadingData.tu, shadingData.tv) / cosTheta;
+    	}
+
 		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
 		Vec3 wiLocal = shadingData.frame.toLocal(wi).normalize();
 		Vec3 wr = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
@@ -619,6 +635,11 @@ public:
 		// Replace this with Plastic PDF
 		//Vec3 wiLocall = shadingData.frame.toLocal(wi);
 		//return SamplingDistributions::cosineHemispherePDF(wiLocall);
+
+		if (alpha < ALPHA_EPSILON) {
+			//std::cout << "  -> Using mirror PDF (alpha < 0.1)" << std::endl;
+			return 0.0f;
+    	}
 
 		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
 		Vec3 wiLocal = shadingData.frame.toLocal(wi);

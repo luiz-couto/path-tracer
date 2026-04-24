@@ -542,7 +542,7 @@ public:
 		if (sampler->next() > fresnel) {
 			// Sampling diffuse
 			Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
-			pdf = PDF(shadingData, wi);
+			pdf = PDF(shadingData, shadingData.frame.toWorld(wi));
 			reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
 			return shadingData.frame.toWorld(wi);
 		}

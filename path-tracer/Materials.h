@@ -534,7 +534,7 @@ public:
 		if (sampler->next() > fresnel) {
 			// Sampling diffuse
 			Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
-			pdf = PDF(shadingData, shadingData.wo);
+			pdf = PDF(shadingData, wi);
 			reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
 			return shadingData.frame.toWorld(wi);
 		}
@@ -558,7 +558,7 @@ public:
 		if (wi.dot(shadingData.sNormal) <= 0) {
 			// Fallback to sample diffuse
 			Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
-			pdf = PDF(shadingData, wi);
+			pdf = PDF(shadingData, shadingData.frame.toWorld(wi));
 			reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
 			return shadingData.frame.toWorld(wi);
 		}

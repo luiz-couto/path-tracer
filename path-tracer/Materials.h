@@ -508,7 +508,7 @@ public:
 
 	float alphaToPhongExponent() {
 		float e = (2.0f / SQ(std::max(alpha, 0.001f))) - 2.0f;
-		return std::min(e, 150.0f);
+		return e;
 	}
 
 	Vec3 sample(const ShadingData& shadingData, Sampler* sampler, Colour& reflectedColour, float& pdf) {
@@ -519,14 +519,24 @@ public:
 		// wis = shadingData.frame.toWorld(wis);
 		// return wis;
 
-		// If too smooth, treat as mirror
-		if (alpha < ALPHA_EPSILON) {
-			pdf = 1;
-			Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo).normalize();
-			Vec3 wi = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
-			wi = shadingData.frame.toWorld(wi).normalize();
-			reflectedColour = evaluate(shadingData, wi);
-			return wi;
+		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
+		float cosTheta = woLocal.z;
+
+		float n;
+		bool isEntering = cosTheta > 0;
+		if (isEntering) {
+			n = extIOR / intIOR;
+		} else {
+			n = intIOR / extIOR;
+		}
+
+		float fresnel = ShadingHelper::fresnelDielectric(cosTheta, n);
+		if (sampler->next() < fresnel) {
+			// Sampling diffuse
+			Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
+			pdf = wi.z / M_PI;
+			reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
+			return shadingData.frame.toWorld(wi);
 		}
 
 		float e = alphaToPhongExponent();
@@ -538,19 +548,20 @@ public:
 		Vec3 wLobe = Vec3(sinf(thetaLobe) * cosf(phiLobe), sinf(thetaLobe) * sinf(phiLobe), cosf(thetaLobe));
 		wLobe = wLobe.normalize();
 		
-		if (wLobe.z < 0) {
-			wLobe.z = 0;
-		}
-		
-		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
 		Vec3 wr = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
-
 		Vec3 wrWorld = shadingData.frame.toWorld(wr);
 		
 		Frame lobeFrame = Frame();
 		lobeFrame.fromVector(wrWorld);
 
 		Vec3 wi = lobeFrame.toWorld(wLobe).normalize();
+		if (wi.dot(shadingData.sNormal) <= 0) {
+			// Fallback to sample diffuse
+			Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
+			pdf = wi.z / M_PI;
+			reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
+			return shadingData.frame.toWorld(wi);
+		}
 
 		reflectedColour = evaluate(shadingData, wi);
 		pdf = PDF(shadingData, wi);
@@ -561,16 +572,20 @@ public:
 		//Replace this with Plastic evaluation code
 		//return albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
 
-		if (alpha < ALPHA_EPSILON) {
-			Vec3 localWi = shadingData.frame.toLocal(wi).normalize();
-			float cosTheta = fabsf(localWi.z);
-			float fresnel = ShadingHelper::fresnelDielectric(cosTheta, intIOR / extIOR);
-			return fresnel * albedo->sample(shadingData.tu, shadingData.tv) / cosTheta;
-    	}
-
 		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
 		Vec3 wiLocal = shadingData.frame.toLocal(wi);
 		Vec3 wr = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
+
+		float cosTheta = fabsf(wiLocal.z);
+
+		float n;
+		bool isEntering = cosTheta > 0;
+		if (isEntering) {
+			n = extIOR / intIOR;
+		} else {
+			n = intIOR / extIOR;
+		}
+		float fresnel = ShadingHelper::fresnelDielectric(cosTheta, n);
 
 		float e = alphaToPhongExponent();
 		float term = (e + 2) / (2 * M_PI);
@@ -580,7 +595,7 @@ public:
 		float brdf = term * term2;
 		Colour cBrdf = Colour(brdf, brdf, brdf);
 
-		return cBrdf + (albedo->sample(shadingData.tu, shadingData.tv) / M_PI );
+		return (cBrdf * fresnel) + ((1 - fresnel) * (albedo->sample(shadingData.tu, shadingData.tv) / M_PI ));
 
 	}
 
@@ -589,14 +604,19 @@ public:
 		//Vec3 wiLocall = shadingData.frame.toLocal(wi);
 		//return SamplingDistributions::cosineHemispherePDF(wiLocall);
 
-		if (alpha < ALPHA_EPSILON) {
-			//std::cout << "  -> Using mirror PDF (alpha < 0.1)" << std::endl;
-			return 0.0f;
-    	}
-
 		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
 		Vec3 wiLocal = shadingData.frame.toLocal(wi);
 		Vec3 wr = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
+		float cosTheta = woLocal.z;
+
+		float n;
+		bool isEntering = cosTheta > 0;
+		if (isEntering) {
+			n = extIOR / intIOR;
+		} else {
+			n = intIOR / extIOR;
+		}
+		float fresnel = ShadingHelper::fresnelDielectric(cosTheta, n);
 
 		float e = alphaToPhongExponent();
 		float dotTerm = wr.dot(wiLocal);
@@ -612,7 +632,7 @@ public:
 			return 0.0f;
 		}
 
-		return term * term2;
+		return (fresnel * result) + ((1 - fresnel) * wiLocal.z / M_PI);
 	}
 
 	bool isPureSpecular() {

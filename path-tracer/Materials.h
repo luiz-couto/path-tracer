@@ -622,7 +622,7 @@ public:
 			float cosTheta = fabsf(localWi.z);
 			float fresnel = ShadingHelper::fresnelDielectric(cosTheta, intIOR, extIOR);
 
-            if (wr.dot(wiLocal) > 0.9999f) {
+            if (wr.dot(localWi) > 0.9999f) {
                 return fresnel * albedo->sample(shadingData.tu, shadingData.tv) / cosTheta;
             }
 

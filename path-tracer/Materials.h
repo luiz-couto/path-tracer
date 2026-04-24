@@ -35,10 +35,11 @@ class ShadingHelper
 {
 public:
 	
-	static float getCosThetaT(float cosTheta, float n) {
+	static float getCosThetaT(float cosTheta, float n, bool &tir) {
+		tir = false;
 		float term = 1 - ((1 - (cosTheta * cosTheta)) / (n * n));
 		if (term < 0) {
-			std::cout << "Total internal reflection!" << std::endl;
+			tir = true;
 		}
 		return std::sqrtf(term);
 	}
@@ -52,9 +53,16 @@ public:
 			n = intIOR / extIOR;
 		}
 
-		float cosThetaT = getCosThetaT(cosTheta, n);
-		float fParallel = (cosTheta - (n * cosThetaT)) / (cosTheta + (n * cosThetaT));
-		float fPerp = ((n * cosTheta) - cosThetaT) / ((n * cosTheta) + cosThetaT);
+		float cosThetaAbs = fabsf(cosTheta);
+		
+		bool tir;
+		float cosThetaT = getCosThetaT(cosThetaAbs, n, tir);
+		if (tir) {
+			return 1.0f;
+		}
+
+		float fParallel = (cosThetaAbs - (n * cosThetaT)) / (cosThetaAbs + (n * cosThetaT));
+		float fPerp = ((n * cosThetaAbs) - cosThetaT) / ((n * cosThetaAbs) + cosThetaT);
 
 		float fresnel = ((fParallel * fParallel) + (fPerp * fPerp)) / 2;
 		return fresnel;
@@ -63,7 +71,12 @@ public:
 	static float fresnelDielectric(float cosTheta, float n)
 	{	
 
-		float cosThetaT = getCosThetaT(cosTheta, n);
+		bool tir;
+		float cosThetaT = getCosThetaT(cosTheta, n, tir);
+		if (tir) {
+			return 1.0f;
+		}
+
 		float fParallel = (cosTheta - (n * cosThetaT)) / (cosTheta + (n * cosThetaT));
 		float fPerp = ((n * cosTheta) - cosThetaT) / ((n * cosTheta) + cosThetaT);
 
@@ -355,7 +368,8 @@ public:
 		// refract
 		Vec3 wi = Vec3(-woLocal.x, -woLocal.y, cosTheta);
 
-		float cosThetaT = ShadingHelper::getCosThetaT(cosTheta, n);
+		bool tir;
+		float cosThetaT = ShadingHelper::getCosThetaT(cosTheta, n, tir);
 		Vec3 wt = Vec3(-n*woLocal.x, -n*woLocal.y, -cosThetaT * sign);
 		return shadingData.frame.toWorld(wt);
 	}
@@ -379,7 +393,8 @@ public:
 		}
 
 		Vec3 wr = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
-		float cosThetaT = ShadingHelper::getCosThetaT(cosTheta, n);
+		bool tir;
+		float cosThetaT = ShadingHelper::getCosThetaT(cosTheta, n, tir);
 
 		float fresnel = ShadingHelper::fresnelDielectric(fabsf(cosTheta), n);
 		Colour fresnel1 = Colour(fresnel, fresnel, fresnel);
@@ -526,7 +541,7 @@ public:
 
 	float alphaToPhongExponent() {
 		float e = (2.0f / SQ(std::max(alpha, 0.001f))) - 2.0f;
-		return e;
+		return std::min(e, 1000.0f);
 	}
 
 	Vec3 sample(const ShadingData& shadingData, Sampler* sampler, Colour& reflectedColour, float& pdf) {
@@ -539,14 +554,14 @@ public:
 
 		if (alpha < ALPHA_EPSILON) {
             Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo).normalize();
-            float fresnel = ShadingHelper::fresnelDielectric(fabsf(woLocal.z), intIOR, extIOR);
+            float fresnel = ShadingHelper::fresnelDielectric(woLocal.z, intIOR, extIOR);
 
             if (sampler->next() > fresnel) {
                 Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
                 pdf = PDF(shadingData, shadingData.frame.toWorld(wi));
                 return shadingData.frame.toWorld(wi);
             } else {
-                pdf = 1;
+                pdf = fresnel;
                 Vec3 wi = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
                 wi = shadingData.frame.toWorld(wi).normalize();
                 return wi;
@@ -619,7 +634,7 @@ public:
 			Vec3 localWi = shadingData.frame.toLocal(wi).normalize();
             Vec3 wr = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
 
-			float cosTheta = fabsf(localWi.z);
+			float cosTheta = localWi.z;
 			float fresnel = ShadingHelper::fresnelDielectric(cosTheta, intIOR, extIOR);
 
             if (wr.dot(localWi) > 0.9999f) {
@@ -676,9 +691,9 @@ public:
             Vec3 wiLocal = shadingData.frame.toLocal(wi).normalize();
             Vec3 wr = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
             float cosTheta = fabsf(wiLocal.z);
-            float fresnel = ShadingHelper::fresnelDielectric(fabsf(woLocal.z), intIOR, extIOR);
+            float fresnel = ShadingHelper::fresnelDielectric(woLocal.z, intIOR, extIOR);
 
-            if (wr.dot(wiLocal) > 0.9999f) return 1.0f;
+            if (wr.dot(wiLocal) > 0.9999f) return fresnel;
             return (1.0f - fresnel) * cosTheta / M_PI;
     	}
 

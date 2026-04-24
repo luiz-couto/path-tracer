@@ -489,6 +489,8 @@ public:
 	}
 };
 
+#define ALPHA_EPSILON 0.001f
+
 class PlasticBSDF : public BSDF
 {
 public:
@@ -497,47 +499,131 @@ public:
 	float extIOR;
 	float alpha;
 	PlasticBSDF() = default;
-	PlasticBSDF(Texture* _albedo, float _intIOR, float _extIOR, float roughness)
-	{
+	PlasticBSDF(Texture* _albedo, float _intIOR, float _extIOR, float roughness) {
 		albedo = _albedo;
 		intIOR = _intIOR;
 		extIOR = _extIOR;
 		alpha = 1.62142f * sqrtf(roughness);
 	}
-	float alphaToPhongExponent()
-	{
-		return (2.0f / SQ(std::max(alpha, 0.001f))) - 2.0f;
+
+	float alphaToPhongExponent() {
+		float e = (2.0f / SQ(std::max(alpha, 0.001f))) - 2.0f;
+		return std::min(e, 150.0f);
 	}
-	Vec3 sample(const ShadingData& shadingData, Sampler* sampler, Colour& reflectedColour, float& pdf)
-	{
-		// Replace this with Plastic sampling code
-		Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
-		pdf = wi.z / M_PI;
-		reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
-		wi = shadingData.frame.toWorld(wi);
+
+	Vec3 sample(const ShadingData& shadingData, Sampler* sampler, Colour& reflectedColour, float& pdf) {
+		//Replace this with Plastic sampling code
+		// Vec3 wis = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
+		// pdf = wis.z / M_PI;
+		// reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
+		// wis = shadingData.frame.toWorld(wis);
+		// return wis;
+
+		// If too smooth, treat as mirror
+		if (alpha < ALPHA_EPSILON) {
+			pdf = 1;
+			Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo).normalize();
+			Vec3 wi = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
+			wi = shadingData.frame.toWorld(wi).normalize();
+			reflectedColour = evaluate(shadingData, wi);
+			return wi;
+		}
+
+		float e = alphaToPhongExponent();
+		float s1 = sampler->next();
+		float s2 = sampler->next();
+
+		float thetaLobe = acosf(std::powf(s1, 1 / (e + 1)));
+		float phiLobe = 2 * M_PI * s2;
+		Vec3 wLobe = Vec3(sinf(thetaLobe) * cosf(phiLobe), sinf(thetaLobe) * sinf(phiLobe), cosf(thetaLobe));
+		wLobe = wLobe.normalize();
+		
+		if (wLobe.z < 0) {
+			wLobe.z = 0;
+		}
+		
+		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
+		Vec3 wr = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
+
+		Vec3 wrWorld = shadingData.frame.toWorld(wr);
+		
+		Frame lobeFrame = Frame();
+		lobeFrame.fromVector(wrWorld);
+
+		Vec3 wi = lobeFrame.toWorld(wLobe).normalize();
+
+		reflectedColour = evaluate(shadingData, wi);
+		pdf = PDF(shadingData, wi);
 		return wi;
 	}
-	Colour evaluate(const ShadingData& shadingData, const Vec3& wi)
-	{
-		// Replace this with Plastic evaluation code
-		return albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
-	}
-	float PDF(const ShadingData& shadingData, const Vec3& wi)
-	{
-		// Replace this with Plastic PDF
+
+	Colour evaluate(const ShadingData& shadingData, const Vec3& wi) {
+		//Replace this with Plastic evaluation code
+		//return albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
+
+		if (alpha < ALPHA_EPSILON) {
+			Vec3 localWi = shadingData.frame.toLocal(wi).normalize();
+			float cosTheta = fabsf(localWi.z);
+			float fresnel = ShadingHelper::fresnelDielectric(cosTheta, intIOR / extIOR);
+			return fresnel * albedo->sample(shadingData.tu, shadingData.tv) / cosTheta;
+    	}
+
+		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
 		Vec3 wiLocal = shadingData.frame.toLocal(wi);
-		return SamplingDistributions::cosineHemispherePDF(wiLocal);
+		Vec3 wr = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
+
+		float e = alphaToPhongExponent();
+		float term = (e + 2) / (2 * M_PI);
+		float term2 = std::max(0.0f, wr.dot(wiLocal));
+		term2 = std::pow(term2, e);
+
+		float brdf = term * term2;
+		Colour cBrdf = Colour(brdf, brdf, brdf);
+
+		return cBrdf + (albedo->sample(shadingData.tu, shadingData.tv) / M_PI );
+
 	}
-	bool isPureSpecular()
-	{
+
+	float PDF(const ShadingData& shadingData, const Vec3& wi) {
+		// Replace this with Plastic PDF
+		//Vec3 wiLocall = shadingData.frame.toLocal(wi);
+		//return SamplingDistributions::cosineHemispherePDF(wiLocall);
+
+		if (alpha < ALPHA_EPSILON) {
+			//std::cout << "  -> Using mirror PDF (alpha < 0.1)" << std::endl;
+			return 0.0f;
+    	}
+
+		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
+		Vec3 wiLocal = shadingData.frame.toLocal(wi);
+		Vec3 wr = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
+
+		float e = alphaToPhongExponent();
+		float dotTerm = wr.dot(wiLocal);
+
+		float term = (e + 1) / (2 * M_PI);
+		float term2 = std::max(0.0f, wr.dot(wiLocal));
+		term2 = std::pow(term2, e);
+
+		// Add assertions to catch NaN/Inf
+		float result = term * term2;
+		if (!std::isfinite(result)) {
+			std::cout << "PDF is not finite! e=" << e << " result=" << result << std::endl;
+			return 0.0f;
+		}
+
+		return term * term2;
+	}
+
+	bool isPureSpecular() {
 		return false;
 	}
-	bool isTwoSided()
-	{
+
+	bool isTwoSided() {
 		return true;
 	}
-	float mask(const ShadingData& shadingData)
-	{
+
+	float mask(const ShadingData& shadingData) {
 		return albedo->sampleAlpha(shadingData.tu, shadingData.tv);
 	}
 };

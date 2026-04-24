@@ -530,11 +530,11 @@ public:
 			n = intIOR / extIOR;
 		}
 
-		float fresnel = ShadingHelper::fresnelDielectric(cosTheta, n);
-		if (sampler->next() < fresnel) {
+		float fresnel = ShadingHelper::fresnelDielectric(fabsf(cosTheta), n);
+		if (sampler->next() > fresnel) {
 			// Sampling diffuse
 			Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
-			pdf = wi.z / M_PI;
+			pdf = PDF(shadingData, shadingData.wo);
 			reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
 			return shadingData.frame.toWorld(wi);
 		}
@@ -558,7 +558,7 @@ public:
 		if (wi.dot(shadingData.sNormal) <= 0) {
 			// Fallback to sample diffuse
 			Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
-			pdf = wi.z / M_PI;
+			pdf = PDF(shadingData, wi);
 			reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
 			return shadingData.frame.toWorld(wi);
 		}
@@ -576,7 +576,7 @@ public:
 		Vec3 wiLocal = shadingData.frame.toLocal(wi);
 		Vec3 wr = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
 
-		float cosTheta = fabsf(wiLocal.z);
+		float cosTheta = wiLocal.z;
 
 		float n;
 		bool isEntering = cosTheta > 0;
@@ -585,7 +585,7 @@ public:
 		} else {
 			n = intIOR / extIOR;
 		}
-		float fresnel = ShadingHelper::fresnelDielectric(cosTheta, n);
+		float fresnel = ShadingHelper::fresnelDielectric(fabsf(cosTheta), n);
 
 		float e = alphaToPhongExponent();
 		float term = (e + 2) / (2 * M_PI);
@@ -616,7 +616,7 @@ public:
 		} else {
 			n = intIOR / extIOR;
 		}
-		float fresnel = ShadingHelper::fresnelDielectric(cosTheta, n);
+		float fresnel = ShadingHelper::fresnelDielectric(fabsf(cosTheta), n);
 
 		float e = alphaToPhongExponent();
 		float dotTerm = wr.dot(wiLocal);

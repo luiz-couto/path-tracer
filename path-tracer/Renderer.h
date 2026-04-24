@@ -79,7 +79,27 @@ public:
 			return finalColor / (pdf * pmf); // shall we do this or just divide by the pdf?
 		}
 
-		return Colour(0.0f, 0.0f, 0.0f);
+		// Env Light
+		Colour emittedColour;
+		float pdf;
+		Vec3 sampledDirection = sampledLight->sample(shadingData, sampler, emittedColour, pdf);
+
+		float cosTheta = shadingData.sNormal.dot(sampledDirection);
+		if (cosTheta < 0) cosTheta = 0;
+
+		float gTerm = cosTheta;
+
+		float maxDist = (scene->bounds.max - scene->bounds.min).length();
+		Vec3 farPoint = shadingData.x + (sampledDirection * maxDist);
+
+		bool isVisible = scene->visible(shadingData.x, farPoint);
+
+		float resultGTerm = gTerm * isVisible;
+
+		Colour finalColor = shadingData.bsdf->evaluate(shadingData, sampledDirection) * emittedColour * resultGTerm;
+
+		return finalColor / (pdf * pmf); // shall we do this or just divide by the pdf?
+		
 	}
 
 	Colour pathTrace(Ray& r, Colour& pathThroughput, int depth, Sampler* sampler, bool isSpecularBounce = false)

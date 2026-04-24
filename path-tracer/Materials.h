@@ -737,7 +737,7 @@ public:
 	}
 
 	bool isPureSpecular() {
-		return false;
+		return alpha < ALPHA_EPSILON;
 	}
 
 	bool isTwoSided() {

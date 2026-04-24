@@ -44,7 +44,8 @@ public:
 	}
 
 	static float fresnelDielectric(float cosTheta, float n)
-	{
+	{	
+
 		float cosThetaT = getCosThetaT(cosTheta, n);
 		float fParallel = (cosTheta - (n * cosThetaT)) / (cosTheta + (n * cosThetaT));
 		float fPerp = ((n * cosTheta) - cosThetaT) / ((n * cosTheta) + cosThetaT);
@@ -530,7 +531,14 @@ public:
 			n = intIOR / extIOR;
 		}
 
-		float fresnel = ShadingHelper::fresnelDielectric(fabsf(cosTheta), n);
+		float fresnel;
+		float termf = 1 - ((1 - (cosTheta * cosTheta)) / (n * n));
+		if (termf < 0.0f) {
+			fresnel = 1.0f;
+		} else {
+			fresnel = ShadingHelper::fresnelDielectric(fabsf(cosTheta), n);
+		}
+
 		if (sampler->next() > fresnel) {
 			// Sampling diffuse
 			Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
@@ -585,11 +593,19 @@ public:
 		} else {
 			n = intIOR / extIOR;
 		}
-		float fresnel = ShadingHelper::fresnelDielectric(fabsf(cosTheta), n);
+
+		float fresnel;
+		float termf = 1 - ((1 - (cosTheta * cosTheta)) / (n * n));
+		if (termf < 0.0f) {
+			fresnel = 1.0f;
+		} else {
+			fresnel = ShadingHelper::fresnelDielectric(fabsf(cosTheta), n);
+		}
 
 		float e = alphaToPhongExponent();
 		float term = (e + 2) / (2 * M_PI);
 		float term2 = std::max(0.0f, wr.dot(wiLocal));
+		term2 = std::min(1.0f, term2);
 		term2 = std::pow(term2, e);
 
 		float brdf = term * term2;
@@ -616,13 +632,21 @@ public:
 		} else {
 			n = intIOR / extIOR;
 		}
-		float fresnel = ShadingHelper::fresnelDielectric(fabsf(cosTheta), n);
+		
+		float fresnel;
+		float termf = 1 - ((1 - (cosTheta * cosTheta)) / (n * n));
+		if (termf < 0.0f) {
+			fresnel = 1.0f;
+		} else {
+			fresnel = ShadingHelper::fresnelDielectric(fabsf(cosTheta), n);
+		}
 
 		float e = alphaToPhongExponent();
 		float dotTerm = wr.dot(wiLocal);
 
 		float term = (e + 1) / (2 * M_PI);
 		float term2 = std::max(0.0f, wr.dot(wiLocal));
+		term2 = std::min(1.0f, term2);
 		term2 = std::pow(term2, e);
 
 		// Add assertions to catch NaN/Inf

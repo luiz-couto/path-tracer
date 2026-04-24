@@ -62,10 +62,14 @@ public:
 			Vec3 sampledPoint = sampledLight->sample(shadingData, sampler, emittedColour, pdf);
 
 			Vec3 wi = sampledPoint - shadingData.x;
+			wi = wi.normalize();
+
 			float cosTheta = shadingData.sNormal.dot(wi);
+			if (cosTheta < 0) cosTheta = 0;
 
 			Vec3 normalLine = sampledLight->normal(shadingData, wi);
 			float cosThetaLine = -wi.dot(normalLine);
+			if (cosThetaLine < 0) cosThetaLine = 0;
 
 			float denominator = (shadingData.x - sampledPoint).lengthSq();
 
@@ -154,7 +158,7 @@ public:
 			newRay.init(shadingData.x + (worldDirection * EPSILON), worldDirection);
 			Colour indirectLight = pathTrace(newRay, newThroughput, depth + 1, sampler, shadingData.bsdf->isPureSpecular());
 
-			return (indirectLight + directLight + aux) * pathThroughput;
+			return indirectLight + (directLight * pathThroughput);
 		}
 
 		return pathThroughput * scene->background->evaluate(r.dir);

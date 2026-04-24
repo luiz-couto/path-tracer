@@ -144,7 +144,7 @@ public:
 	// Add code here
 	Vec3 sample(Sampler* sampler, float& pdf) {
 
-		pdf = invArea;
+		pdf = 1.0f / area;
 		float e1 = sampler->next();
 		float e2 = sampler->next();
 

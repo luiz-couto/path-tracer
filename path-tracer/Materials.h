@@ -525,7 +525,7 @@ public:
 
 		float n;
 		bool isEntering = cosTheta > 0;
-		if (isEntering) {
+		if (!isEntering) {
 			n = extIOR / intIOR;
 		} else {
 			n = intIOR / extIOR;
@@ -581,14 +581,14 @@ public:
 		//return albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
 
 		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
-		Vec3 wiLocal = shadingData.frame.toLocal(wi);
+		Vec3 wiLocal = shadingData.frame.toLocal(wi).normalize();
 		Vec3 wr = Vec3(-woLocal.x, -woLocal.y, woLocal.z);
 
 		float cosTheta = wiLocal.z;
 
 		float n;
 		bool isEntering = cosTheta > 0;
-		if (isEntering) {
+		if (!isEntering) {
 			n = extIOR / intIOR;
 		} else {
 			n = intIOR / extIOR;
@@ -627,7 +627,7 @@ public:
 
 		float n;
 		bool isEntering = cosTheta > 0;
-		if (isEntering) {
+		if (!isEntering) {
 			n = extIOR / intIOR;
 		} else {
 			n = intIOR / extIOR;

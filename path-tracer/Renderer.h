@@ -116,11 +116,10 @@ public:
 		}
 	}
 
-	Colour computeDirect(ShadingData shadingData, Sampler* sampler)
-	{
+	Colour computeDirect(ShadingData shadingData, Sampler* sampler) {
+
 		// Is surface is specular we cannot computing direct lighting
-		if (shadingData.bsdf->isPureSpecular() == true)
-		{
+		if (shadingData.bsdf->isPureSpecular() == true) {
 			return Colour(0.0f, 0.0f, 0.0f);
 		}
 
@@ -545,6 +544,30 @@ public:
 				canvas->draw(x, y, r, g, b);
 			}
 		}
+	}
+
+	void connectToCamera(Vec3 p, Vec3 n, Colour col) {
+		float x,y;
+		bool isPOnCamera = scene->camera.projectOntoCamera(p, x, y);
+
+		if (!isPOnCamera) {
+			// What to do here?
+			return;
+		}
+
+		Vec3 cameraNormal = scene->camera.viewDirection;
+		Vec3 cameraOrigin = scene->camera.origin;
+
+		// How to compute gTerm?
+
+		Vec3 dirToCamera = (n - cameraOrigin).normalize();
+		float cosTheta = cameraNormal.dot(dirToCamera);
+		float cosThetaSqr = cosTheta * cosTheta;
+
+		float gTerm = 1 / (scene->camera.Afilm * cosThetaSqr * cosThetaSqr);
+		col = gTerm * col;
+
+		film->splat(x, y, col);
 	}
 
 	int getSPP() {

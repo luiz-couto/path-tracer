@@ -603,7 +603,7 @@ public:
 			float pdfDirection;
 			Vec3 wi = sampledLight->sampleDirectionFromLight(sampler, pdfDirection);
 
-			Colour col = sampledLight->evaluate(-wi) / (pdfPosition * pmf); // Should I do this?
+			Colour col = sampledLight->evaluate(-wi) / (pdfPosition * pmf * pdfDirection); // Should I do this?
 
 			Ray ray;
 			ray.init(p, wi);
@@ -627,19 +627,15 @@ public:
 			}
 
 			Vec3 wi = scene->camera.origin - shadingData.x;
-			wi.normalize();
+			wi = wi.normalize();
 
 			float cosTheta = wi.dot(shadingData.sNormal);
-			//if (cosTheta <= 0) return;
+			if (cosTheta < 0) cosTheta = 0.0f;
 
 			bool isVisible = scene->visible(shadingData.x, scene->camera.origin);
 
 			Colour bsdfValue = shadingData.bsdf->evaluate(shadingData, wi);
-			Colour newThroughput = pathThroughput * bsdfValue * Le;
-
-			if (!shadingData.bsdf->isPureSpecular() && isVisible) {
-            	connectToCamera(shadingData.x, shadingData.sNormal, newThroughput);
-        	}
+			Colour newThroughput = pathThroughput * bsdfValue * cosTheta * Le;
 
 			if (depth >= MIN_DEPTH_FOR_RUSSIAN_ROULETTE) {
 				float q = newThroughput.Lum();
@@ -653,14 +649,19 @@ public:
 				newThroughput = newThroughput / qClamped;
 			}
 
+			if (!shadingData.bsdf->isPureSpecular() && isVisible) {
+            	connectToCamera(shadingData.x, shadingData.sNormal, newThroughput);
+        	}
+
 			Colour bounceColour;
 			float bouncePdf;
 			Vec3 bounceDir = shadingData.bsdf->sample(shadingData, sampler, bounceColour, bouncePdf);
 
 			Colour bounceBsdf = shadingData.bsdf->evaluate(shadingData, bounceDir);
 			float cosBounce = bounceDir.dot(shadingData.sNormal);
+			if (cosBounce < 0) cosBounce = 0.0f;
 
-			Colour bounceThroughput = newThroughput * bounceBsdf * cosBounce / bouncePdf;
+			Colour bounceThroughput = pathThroughput * bounceBsdf * cosBounce / bouncePdf;
 
 			Ray newRay;
 			newRay.init(shadingData.x + (bounceDir * EPSILON), bounceDir);

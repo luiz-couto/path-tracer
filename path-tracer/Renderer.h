@@ -22,9 +22,9 @@ public:
 	ShadingData shadingData;
 	Colour le;
 
-	VPL(ShadingData _shadingData, Colour _le): shadingData(_shadingData), le(_le)  {
+	//VPL() {}
 
-	}
+	VPL(ShadingData _shadingData, Colour _le): shadingData(_shadingData), le(_le)  {}
 };
 
 #define INST_RAD_N 100
@@ -39,7 +39,7 @@ public:
 	std::thread** threads;
 	int numProcs;
 
-	VPL* vpls[INST_RAD_N * MAX_DEPTH_PATH_TRACE];
+	std::vector<VPL> vpls = {};
 	unsigned int vplSize = 0;
 
 	void init(Scene* _scene, GamesEngineeringBase::Window* _canvas) {
@@ -59,20 +59,7 @@ public:
 		film->clear();
 	}
 
-	Colour instantRadiosity(Ray& r, ShadingData shadingData, Sampler* sampler) {
-		// foreach sample with n reflections:
-		// 	[x, pdf_x] = SampleLuminaire
-		// 	rad = L(x)/pdf_x
-		// 		for reflection in {0..n}:
-		// 			pdf_refl = pow(average_reflectivity, reflection)
-		// 			StoreVPL (x, rad/pdf_refl)
-		// 			[w, pdf_w] = SampleDirection
-		// 			rad *= 𝑘𝑑 𝑥
-		// 			𝜋
-		// 			cos()/pdf_w
-		// 			[x] = RayTr
-
-
+	void instantRadiosityFirstPass(Sampler* sampler) {
 		// First pass
 		for (int i=0; i<INST_RAD_N; i++) {
 			float pmf;
@@ -87,7 +74,7 @@ public:
 			shadingData = ShadingData(p, lightNormal);
 			float powerWeighted = sampledLight->totalIntegratedPower() / (pdf * pmf);
 			Colour rad = Colour(powerWeighted, powerWeighted, powerWeighted);
-			vpls[vplSize] = new VPL(shadingData, rad);
+			vpls.push_back(VPL(shadingData, rad));
 			vplSize++;
 
 			int depth = 0;
@@ -108,8 +95,10 @@ public:
 				rad = (rad * color * cosTheta) / pdf;
 				
 				// Store VPL
-				vpls[vplSize] = new VPL(shadingDataBounce, rad);
-				vplSize++;
+				if (!shadingDataBounce.bsdf->isPureSpecular()) {
+					vpls.push_back(VPL(shadingDataBounce, rad));
+					vplSize++;
+				}
 
 				// Russian-Roulette to decide when to stop bouncing
 				if (depth >= MIN_DEPTH_FOR_RUSSIAN_ROULETTE) {
@@ -364,6 +353,111 @@ public:
 
 		for (int i=0; i<numProcs; i++) {
 			threads[i] = new std::thread(&RayTracer::threadProcess, this, i, std::ref(tileID), filmWidth, filmHeight);
+		}
+
+		for (int i=0; i<numProcs; i++) {
+			threads[i]->join();
+		}
+	}
+
+	void threadProcessInstantRadiosity(unsigned int tID, std::atomic<unsigned int> &tileID, unsigned int filmWidth, unsigned int filmHeight) {
+		unsigned int widthToComplete = filmWidth % TILE_SIZE;
+		unsigned int heightToComplete = filmHeight % TILE_SIZE;
+		unsigned int fakeWidth = filmWidth + widthToComplete;
+		unsigned int fakeHeight = filmHeight + heightToComplete;
+
+		unsigned int tilesPerRow = fakeWidth / TILE_SIZE;
+		unsigned int tilesPerColumn = fakeHeight / TILE_SIZE;
+		unsigned int lastTileID = (tilesPerRow * tilesPerColumn) - 1;
+		
+		while (true) {
+			unsigned int currTileID = tileID;
+			tileID++;
+
+			if (currTileID > lastTileID) return;
+
+			unsigned int xStart = (currTileID % tilesPerRow) * TILE_SIZE;
+			unsigned int yStart = (currTileID / tilesPerRow) * TILE_SIZE;
+
+			for (unsigned int y = yStart; y < yStart + TILE_SIZE; y++) {
+				if (y >= filmHeight) continue;
+
+				for (unsigned int x = xStart; x < xStart + TILE_SIZE; x++) {
+					if (x >= filmWidth) break;
+
+					float px = x + samplers->next();
+					float py = y + samplers->next();
+					
+					Ray ray = scene->camera.generateRay(px, py);
+					IntersectionData intersection = scene->traverse(ray);
+					ShadingData shadingData = scene->calculateShadingData(intersection, ray);
+
+					// maybe here I need to check if shadingData.t < FLT_MAX
+					if (shadingData.t >= FLT_MAX) continue;
+					if (shadingData.bsdf->isPureSpecular()) continue;
+					
+					Colour col = computeDirect(shadingData, &this->samplers[tID]);
+
+					for (int i=0; i<vplSize; i++) {
+						const VPL& vpl = vpls[i];
+						bool isVisible = scene->visible(shadingData.x, vpl.shadingData.x);
+
+						if (!isVisible) continue;
+
+						Vec3 wi = vpl.shadingData.x - shadingData.x;
+						wi = wi.normalize();
+
+						float cosTheta = shadingData.sNormal.dot(wi);
+						if (cosTheta <= 0) continue;
+
+						float cosThetaVPL = vpl.shadingData.sNormal.dot(-wi);
+						if (cosThetaVPL < 0) cosThetaVPL = 0;
+						
+						float distSqr = (shadingData.x - vpl.shadingData.x).lengthSq();
+
+						float gTerm = (cosTheta * cosThetaVPL) / distSqr;
+
+						Colour brdf = shadingData.bsdf->evaluate(shadingData, wi);
+
+						col = col + (vpl.le * brdf * gTerm);
+					}
+
+					//Colour col = direct(ray, &samplers[0]);
+					if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {
+						continue;
+					}
+					film->splat(px, py, col);
+				}
+			}
+
+			for (unsigned int y = yStart; y < yStart + TILE_SIZE; y++) {
+				if (y >= filmHeight) continue;
+				for (unsigned int x = xStart; x < xStart + TILE_SIZE; x++) {
+					if (x >= filmWidth) break;
+					unsigned char r, g, b;
+					film->tonemap(x, y, r, g, b);
+					canvas->draw(x, y, r, g, b);
+				}
+			}
+
+		}
+	}
+
+	void parallelRenderInstantRadiosity() {
+		film->incrementSPP();
+		
+		vplSize = 0;
+		vpls.clear();
+		vpls.reserve(INST_RAD_N * MAX_DEPTH_PATH_TRACE * 3);
+
+		this->instantRadiosityFirstPass(&this->samplers[0]);
+
+		std::atomic<unsigned int> tileID(0);
+		unsigned int filmWidth = film->width;
+		unsigned int filmHeight = film->height;
+
+		for (int i=0; i<numProcs; i++) {
+			threads[i] = new std::thread(&RayTracer::threadProcessInstantRadiosity, this, i, std::ref(tileID), filmWidth, filmHeight);
 		}
 
 		for (int i=0; i<numProcs; i++) {

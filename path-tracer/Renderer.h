@@ -27,7 +27,7 @@ public:
 	VPL(ShadingData _shadingData, Colour _le): shadingData(_shadingData), le(_le)  {}
 };
 
-#define INST_RAD_N 100
+#define INST_RAD_N 25
 
 class RayTracer
 {
@@ -419,7 +419,7 @@ public:
 
 						Colour brdf = shadingData.bsdf->evaluate(shadingData, wi);
 
-						col = col + (vpl.le * brdf * gTerm);
+						col = col + (vpl.le * brdf * gTerm) / INST_RAD_N; // NOT SURE ABOUT THIS
 					}
 
 					//Colour col = direct(ray, &samplers[0]);

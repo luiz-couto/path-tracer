@@ -312,21 +312,22 @@ public:
 					// float px = x + 0.5f;
 					// float py = y + 0.5f;
 
-					float px = x + samplers->next();
-					float py = y + samplers->next();
-					Ray ray = scene->camera.generateRay(px, py);
-					// Colour col = viewNormals(ray);
-					// Colour col = albedo(ray);
+					// float px = x + samplers->next();
+					// float py = y + samplers->next();
+					// Ray ray = scene->camera.generateRay(px, py);
+					// // Colour col = viewNormals(ray);
+					// // Colour col = albedo(ray);
 
-					Colour pathThroughput(1.0f, 1.0f, 1.0f);
+					// Colour pathThroughput(1.0f, 1.0f, 1.0f);
+					// Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
 
-					Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
+					// //Colour col = direct(ray, &samplers[0]);
+					// if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {
+					// 	continue;
+					// }
+					// film->splat(px, py, col);
 
-					//Colour col = direct(ray, &samplers[0]);
-					if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {
-						continue;
-					}
-					film->splat(px, py, col);
+					lightTrace(&this->samplers[tID]);
 				}
 			}
 
@@ -339,7 +340,6 @@ public:
 					canvas->draw(x, y, r, g, b);
 				}
 			}
-
 		}
 	}
 
@@ -546,8 +546,13 @@ public:
 		}
 	}
 
-	void renderLightTrace() {
+	void renderLightTraceSequential() {
 		film->incrementSPP();
+
+		// for (int i=0; i<1000; i++) {
+		// 	lightTrace(&this->samplers[0]);
+		// }
+		
 		for (unsigned int y = 0; y < film->height; y++) {
 			for (unsigned int x = 0; x < film->width; x++) {
 				lightTrace(&this->samplers[0]);
@@ -617,7 +622,7 @@ public:
 		if (shadingData.t < FLT_MAX) {
 			if (shadingData.bsdf->isLight()) {
 				Colour col = shadingData.bsdf->emit(shadingData, shadingData.wo);
-				connectToCamera(shadingData.x, shadingData.sNormal, col * pathThroughput);
+				connectToCamera(shadingData.x, shadingData.sNormal, col);
 				return;
 			}
 
@@ -625,7 +630,7 @@ public:
 			wi.normalize();
 
 			float cosTheta = wi.dot(shadingData.sNormal);
-			if (cosTheta <= 0) return;
+			//if (cosTheta <= 0) return;
 
 			bool isVisible = scene->visible(shadingData.x, scene->camera.origin);
 
@@ -648,10 +653,19 @@ public:
 				newThroughput = newThroughput / qClamped;
 			}
 
-			Ray newRay;
-			newRay.init(shadingData.x + (wi * EPSILON), wi);
+			Colour bounceColour;
+			float bouncePdf;
+			Vec3 bounceDir = shadingData.bsdf->sample(shadingData, sampler, bounceColour, bouncePdf);
 
-			return lightTracePath(newRay, newThroughput, Le, sampler, depth + 1);
+			Colour bounceBsdf = shadingData.bsdf->evaluate(shadingData, bounceDir);
+			float cosBounce = bounceDir.dot(shadingData.sNormal);
+
+			Colour bounceThroughput = newThroughput * bounceBsdf * cosBounce / bouncePdf;
+
+			Ray newRay;
+			newRay.init(shadingData.x + (bounceDir * EPSILON), bounceDir);
+
+			return lightTracePath(newRay, bounceThroughput, Colour(1.0f, 1.0f, 1.0f), sampler, depth + 1); // Or should I use Le here as well?
 		}
 
 		// Should I do this?

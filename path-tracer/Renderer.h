@@ -17,6 +17,18 @@
 
 #define TILE_SIZE 32
 
+class VPL {
+public:
+	ShadingData shadingData;
+	Colour le;
+
+	VPL(ShadingData _shadingData, Colour _le): shadingData(_shadingData), le(_le)  {
+
+	}
+};
+
+#define INST_RAD_N 100
+
 class RayTracer
 {
 public:
@@ -26,6 +38,9 @@ public:
 	MTRandom* samplers;
 	std::thread** threads;
 	int numProcs;
+
+	VPL* vpls[INST_RAD_N * MAX_DEPTH_PATH_TRACE];
+	unsigned int vplSize = 0;
 
 	void init(Scene* _scene, GamesEngineeringBase::Window* _canvas) {
 		scene = _scene;
@@ -42,6 +57,74 @@ public:
 
 	void clear() {
 		film->clear();
+	}
+
+	Colour instantRadiosity(Ray& r, ShadingData shadingData, Sampler* sampler) {
+		// foreach sample with n reflections:
+		// 	[x, pdf_x] = SampleLuminaire
+		// 	rad = L(x)/pdf_x
+		// 		for reflection in {0..n}:
+		// 			pdf_refl = pow(average_reflectivity, reflection)
+		// 			StoreVPL (x, rad/pdf_refl)
+		// 			[w, pdf_w] = SampleDirection
+		// 			rad *= 𝑘𝑑 𝑥
+		// 			𝜋
+		// 			cos()/pdf_w
+		// 			[x] = RayTr
+
+
+		// First pass
+		for (int i=0; i<INST_RAD_N; i++) {
+			float pmf;
+			Light* sampledLight = scene->sampleLight(sampler, pmf); // Use MIS later!
+
+			float pdf;
+			Vec3 p = sampledLight->samplePositionFromLight(sampler, pdf);
+			ShadingData shadingData;
+			Vec3 lightNormal = sampledLight->normal(shadingData, p);
+
+			// VPL at light source
+			shadingData = ShadingData(p, lightNormal);
+			float powerWeighted = sampledLight->totalIntegratedPower() / (pdf * pmf);
+			Colour rad = Colour(powerWeighted, powerWeighted, powerWeighted);
+			vpls[vplSize] = new VPL(shadingData, rad);
+			vplSize++;
+
+			int depth = 0;
+			// Do some bounces
+			while (true) {
+				Ray newRay;
+				newRay.init(shadingData.x + (lightNormal * EPSILON), lightNormal);
+				IntersectionData intersection = scene->traverse(newRay);
+				if (intersection.t >= FLT_MAX) break;
+
+				ShadingData shadingDataBounce = scene->calculateShadingData(intersection, newRay);
+				
+				Colour color;
+				float pdf;
+				Vec3 worldDirection = shadingDataBounce.bsdf->sample(shadingDataBounce, sampler, color, pdf);
+				float cosTheta = std::max(fabsf(worldDirection.dot(shadingDataBounce.sNormal)), 0.0f);
+				
+				rad = (rad * color * cosTheta) / pdf;
+				
+				// Store VPL
+				vpls[vplSize] = new VPL(shadingDataBounce, rad);
+				vplSize++;
+
+				// Russian-Roulette to decide when to stop bouncing
+				if (depth >= MIN_DEPTH_FOR_RUSSIAN_ROULETTE) {
+					float radClamped = std::min(rad.Lum(), 1.0f);
+					float epsilon = sampler->next();
+					if (epsilon > radClamped) {
+						break;
+					}
+				}
+
+				lightNormal = shadingDataBounce.sNormal;
+				shadingData = shadingDataBounce;
+				depth++;
+			}
+		}
 	}
 
 	Colour computeDirect(ShadingData shadingData, Sampler* sampler)

@@ -661,7 +661,7 @@ public:
 			float cosBounce = bounceDir.dot(shadingData.sNormal);
 			if (cosBounce < 0) cosBounce = 0.0f;
 
-			Colour bounceThroughput = pathThroughput * bounceBsdf * cosBounce / bouncePdf;
+			Colour bounceThroughput = pathThroughput * Le * bounceBsdf * cosBounce / bouncePdf;
 
 			Ray newRay;
 			newRay.init(shadingData.x + (bounceDir * EPSILON), bounceDir);

@@ -392,8 +392,11 @@ public:
 					IntersectionData intersection = scene->traverse(ray);
 					ShadingData shadingData = scene->calculateShadingData(intersection, ray);
 
-					// maybe here I need to check if shadingData.t < FLT_MAX
-					if (shadingData.t >= FLT_MAX) continue;
+					if (shadingData.t >= FLT_MAX) {
+						Colour bgColor = scene->background->evaluate(ray.dir);
+						film->splat(px, py, bgColor);
+						continue;
+					}
 
 					Colour specThrouput = Colour(1.0f, 1.0f, 1.0f);
 					
@@ -416,8 +419,8 @@ public:
 
 							IntersectionData specIntersection = scene->traverse(specRay);
 							if (specIntersection.t >= FLT_MAX) {
-								// Colour bgColor = scene->background->evaluate(specRay.dir);
-								// film->splat(px, py, bgColor);
+								Colour bgColor = scene->background->evaluate(specRay.dir);
+								film->splat(px, py, bgColor * specThrouput);
 								specThrouput = Colour(0.0f, 0.0f, 0.0f);
 								break;
 							}

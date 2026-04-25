@@ -109,7 +109,7 @@ public:
 					}
 				}
 
-				lightNormal = shadingDataBounce.sNormal;
+				lightNormal = worldDirection;
 				shadingData = shadingDataBounce;
 				depth++;
 			}
@@ -394,7 +394,38 @@ public:
 
 					// maybe here I need to check if shadingData.t < FLT_MAX
 					if (shadingData.t >= FLT_MAX) continue;
-					if (shadingData.bsdf->isPureSpecular()) continue;
+
+					Colour specThrouput = Colour(1.0f, 1.0f, 1.0f);
+					
+					if (shadingData.bsdf->isPureSpecular()) {
+						int specDepth = 0;
+
+						while(shadingData.bsdf->isPureSpecular()) {
+							if (specDepth >= MAX_DEPTH_PATH_TRACE) break;
+
+							Colour color;
+							float pdf;
+							Vec3 wi = shadingData.bsdf->sample(shadingData, &this->samplers[tID], color, pdf);
+
+							float cosTheta = std::max(fabsf(wi.dot(shadingData.sNormal)), 0.0f);
+							Colour bsdf = shadingData.bsdf->evaluate(shadingData, wi);
+							specThrouput = specThrouput * bsdf * cosTheta / pdf;
+
+							Ray specRay;
+							specRay.init(shadingData.x + (wi * EPSILON), wi);
+
+							IntersectionData specIntersection = scene->traverse(specRay);
+							if (specIntersection.t >= FLT_MAX) {
+								specThrouput = Colour(0.0f, 0.0f, 0.0f);
+								break;
+							}
+
+							shadingData = scene->calculateShadingData(specIntersection, specRay);
+							specDepth++;
+						}
+					};
+
+					if (specThrouput.Lum() <= 0.0f || shadingData.bsdf->isPureSpecular()) continue;
 					
 					Colour col = computeDirect(shadingData, &this->samplers[tID]);
 
@@ -415,12 +446,20 @@ public:
 						
 						float distSqr = (shadingData.x - vpl.shadingData.x).lengthSq();
 
+						// This + 0.01f is a bias, to avoid singularity
+						//float gTerm = (cosTheta * cosThetaVPL) / distSqr + 0.05f;
+						//if (gTerm > 10.0f) gTerm = 10.0f;
+
+						//distSqr = std::max(distSqr, 0.01f);
 						float gTerm = (cosTheta * cosThetaVPL) / distSqr;
+
 
 						Colour brdf = shadingData.bsdf->evaluate(shadingData, wi);
 
 						col = col + (vpl.le * brdf * gTerm) / INST_RAD_N; // NOT SURE ABOUT THIS
 					}
+
+					col = col * specThrouput;
 
 					//Colour col = direct(ray, &samplers[0]);
 					if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {

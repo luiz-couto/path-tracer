@@ -44,12 +44,12 @@ C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(236,11): 
 C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Scene.h(88,42): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
   (compiling source file 'main.cpp')
   
-C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Renderer.h(401,21): warning C4018: '<': signed/unsigned mismatch
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Renderer.h(443,22): warning C4018: '<': signed/unsigned mismatch
   (compiling source file 'main.cpp')
   
   Generating code
-  4 of 2283 functions ( 0.2%) were compiled, the rest were copied from previous compilation.
+  13 of 2283 functions ( 0.6%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
-    17 functions had inline decision re-evaluated but remain unchanged
+    40 functions had inline decision re-evaluated but remain unchanged
   Finished generating code
   path-tracer.vcxproj -> C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\x64\Release\path-tracer.exe

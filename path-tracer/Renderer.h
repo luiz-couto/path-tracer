@@ -416,6 +416,8 @@ public:
 
 							IntersectionData specIntersection = scene->traverse(specRay);
 							if (specIntersection.t >= FLT_MAX) {
+								// Colour bgColor = scene->background->evaluate(specRay.dir);
+								// film->splat(px, py, bgColor);
 								specThrouput = Colour(0.0f, 0.0f, 0.0f);
 								break;
 							}
@@ -426,6 +428,12 @@ public:
 					};
 
 					if (specThrouput.Lum() <= 0.0f || shadingData.bsdf->isPureSpecular()) continue;
+
+					if (shadingData.bsdf->isLight()) {
+						Colour emitted = shadingData.bsdf->emit(shadingData, shadingData.wo);
+						film->splat(px, py, emitted * specThrouput);
+						continue;
+					}
 					
 					Colour col = computeDirect(shadingData, &this->samplers[tID]);
 
@@ -447,11 +455,11 @@ public:
 						float distSqr = (shadingData.x - vpl.shadingData.x).lengthSq();
 
 						// This + 0.01f is a bias, to avoid singularity
-						//float gTerm = (cosTheta * cosThetaVPL) / distSqr + 0.05f;
-						//if (gTerm > 10.0f) gTerm = 10.0f;
+						float gTerm = (cosTheta * cosThetaVPL) / distSqr;
+						if (gTerm > 10.0f) gTerm = 10.0f;
 
 						//distSqr = std::max(distSqr, 0.01f);
-						float gTerm = (cosTheta * cosThetaVPL) / distSqr;
+						//float gTerm = (cosTheta * cosThetaVPL) / distSqr;
 
 
 						Colour brdf = shadingData.bsdf->evaluate(shadingData, wi);

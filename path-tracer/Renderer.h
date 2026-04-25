@@ -546,6 +546,23 @@ public:
 		}
 	}
 
+	void renderLightTrace() {
+		film->incrementSPP();
+		for (unsigned int y = 0; y < film->height; y++) {
+			for (unsigned int x = 0; x < film->width; x++) {
+				lightTrace(&this->samplers[0]);
+			}
+		}
+
+		for (unsigned int y = 0; y < film->height; y++) {
+			for (unsigned int x = 0; x < film->width; x++) {
+				unsigned char r, g, b;
+				film->tonemap(x, y, r, g, b);
+				canvas->draw(x, y, r, g, b);
+			}
+		}
+	}
+
 	void connectToCamera(Vec3 p, Vec3 n, Colour col) {
 		float x,y;
 		bool isPOnCamera = scene->camera.projectOntoCamera(p, x, y);
@@ -560,7 +577,7 @@ public:
 
 		// How to compute gTerm?
 
-		Vec3 dirToCamera = (n - cameraOrigin).normalize();
+		Vec3 dirToCamera = (cameraOrigin - p).normalize();
 		float cosTheta = cameraNormal.dot(dirToCamera);
 		float cosThetaSqr = cosTheta * cosTheta;
 
@@ -568,6 +585,79 @@ public:
 		col = gTerm * col;
 
 		film->splat(x, y, col);
+	}
+
+	void lightTrace(Sampler *sampler) {
+		float pmf;
+		Light* sampledLight = scene->sampleLight(sampler, pmf);
+
+		if (sampledLight->isArea()) {
+			float pdfPosition;
+			Vec3 p = sampledLight->samplePositionFromLight(sampler, pdfPosition);
+
+			float pdfDirection;
+			Vec3 wi = sampledLight->sampleDirectionFromLight(sampler, pdfDirection);
+
+			Colour col = sampledLight->evaluate(-wi) / (pdfPosition * pmf); // Should I do this?
+
+			Ray ray;
+			ray.init(p, wi);
+
+			Colour pathThroughput = Colour(1.0f, 1.0f, 1.0f);
+			lightTracePath(ray, pathThroughput, col, sampler, 0);
+		}
+	}
+
+	void lightTracePath(Ray &r , Colour pathThroughput, Colour Le, Sampler *sampler, int depth) {
+		if (depth > MAX_DEPTH_PATH_TRACE) return;
+		
+		IntersectionData intersection = scene->traverse(r);
+		ShadingData shadingData = scene->calculateShadingData(intersection, r);
+		
+		if (shadingData.t < FLT_MAX) {
+			if (shadingData.bsdf->isLight()) {
+				Colour col = shadingData.bsdf->emit(shadingData, shadingData.wo);
+				connectToCamera(shadingData.x, shadingData.sNormal, col * pathThroughput);
+				return;
+			}
+
+			Vec3 wi = scene->camera.origin - shadingData.x;
+			wi.normalize();
+
+			float cosTheta = wi.dot(shadingData.sNormal);
+			if (cosTheta <= 0) return;
+
+			bool isVisible = scene->visible(shadingData.x, scene->camera.origin);
+
+			Colour bsdfValue = shadingData.bsdf->evaluate(shadingData, wi);
+			Colour newThroughput = pathThroughput * bsdfValue * Le;
+
+			if (!shadingData.bsdf->isPureSpecular() && isVisible) {
+            	connectToCamera(shadingData.x, shadingData.sNormal, newThroughput);
+        	}
+
+			if (depth >= MIN_DEPTH_FOR_RUSSIAN_ROULETTE) {
+				float q = newThroughput.Lum();
+				float qClamped = std::min(q, 1.0f);
+				float epsilon = sampler->next();
+				if (epsilon > qClamped) {
+					//connectToCamera(shadingData.x, shadingData.sNormal, newThroughput);
+					return;
+				}
+
+				newThroughput = newThroughput / qClamped;
+			}
+
+			Ray newRay;
+			newRay.init(shadingData.x + (wi * EPSILON), wi);
+
+			return lightTracePath(newRay, newThroughput, Le, sampler, depth + 1);
+		}
+
+		// Should I do this?
+		//Colour col = pathThroughput * scene->background->evaluate(r.dir);
+		//connectToCamera(shadingData.x, shadingData.sNormal, col);
+		return;
 	}
 
 	int getSPP() {

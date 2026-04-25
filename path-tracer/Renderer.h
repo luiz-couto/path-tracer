@@ -603,7 +603,7 @@ public:
 			float pdfDirection;
 			Vec3 wi = sampledLight->sampleDirectionFromLight(sampler, pdfDirection);
 
-			Colour col = sampledLight->evaluate(-wi) / (pdfPosition * pmf); // Should I do this?
+			Colour col = sampledLight->evaluate(-wi) / pdfPosition;
 
 			Ray ray;
 			ray.init(p, wi);

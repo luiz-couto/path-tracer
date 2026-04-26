@@ -322,10 +322,10 @@ public:
 					Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
 
 					// Maybe I can remove this after MIS?
-					float maxBrightness = 10.0f;
-					col.r = std::min(col.r, maxBrightness);
-					col.g = std::min(col.g, maxBrightness);
-					col.b = std::min(col.b, maxBrightness);
+					// float maxBrightness = 10.0f;
+					// col.r = std::min(col.r, maxBrightness);
+					// col.g = std::min(col.g, maxBrightness);
+					// col.b = std::min(col.b, maxBrightness);
 
 					//Colour col = direct(ray, &samplers[0]);
 					if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {

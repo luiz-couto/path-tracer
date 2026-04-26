@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
 		}
 		// Time how long a render call takes
 		timer.reset();
-		rt.renderLightTraceSequential();
+		rt.parallelRender();
 		float t = timer.dt();
 		// Write
 		std::cout << t << std::endl;

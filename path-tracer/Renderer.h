@@ -11,6 +11,7 @@
 #include <thread>
 #include <functional>
 #include <atomic>
+#include <OpenImageDenoise/oidn.hpp>
 
 #define MAX_DEPTH_PATH_TRACE 5
 #define MIN_DEPTH_FOR_RUSSIAN_ROULETTE 3
@@ -312,22 +313,22 @@ public:
 					// float px = x + 0.5f;
 					// float py = y + 0.5f;
 
-					// float px = x + samplers->next();
-					// float py = y + samplers->next();
-					// Ray ray = scene->camera.generateRay(px, py);
+					float px = x + samplers->next();
+					float py = y + samplers->next();
+					Ray ray = scene->camera.generateRay(px, py);
 					// // Colour col = viewNormals(ray);
 					// // Colour col = albedo(ray);
 
-					// Colour pathThroughput(1.0f, 1.0f, 1.0f);
-					// Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
+					Colour pathThroughput(1.0f, 1.0f, 1.0f);
+					Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
 
-					// //Colour col = direct(ray, &samplers[0]);
-					// if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {
-					// 	continue;
-					// }
-					// film->splat(px, py, col);
+					//Colour col = direct(ray, &samplers[0]);
+					if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {
+						continue;
+					}
+					film->splat(px, py, col);
 
-					lightTrace(&this->samplers[tID]);
+					//lightTrace(&this->samplers[tID]);
 				}
 			}
 

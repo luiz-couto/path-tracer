@@ -572,27 +572,29 @@ public:
 		float x,y;
 		bool isPOnCamera = scene->camera.projectOntoCamera(p, x, y);
 
-		if (!isPOnCamera) {
-			// What to do here?
-			return;
-		}
+		if (!isPOnCamera) return;
 
 		Vec3 cameraNormal = scene->camera.viewDirection;
 		Vec3 cameraOrigin = scene->camera.origin;
 
-		// How to compute gTerm?
-
-		Vec3 dirToCamera = (p - cameraOrigin).normalize();
-		float cosTheta = cameraNormal.dot(dirToCamera);
+		Vec3 cameraToPoint = (p - cameraOrigin).normalize();
+		Vec3 pointToCamera = -cameraToPoint;
+		
+		float cosTheta = cameraNormal.dot(cameraToPoint);
 		if (cosTheta < 0) return;
+
+		float pointCosTheta = pointToCamera.dot(n);
+		//if (pointCosTheta < 0) return;
+
+		float gTerm = cosTheta * pointCosTheta;
 
 		bool isVisible = scene->visible(p, cameraOrigin);
 		if (!isVisible) return;
 
 		float cosThetaSqr = cosTheta * cosTheta;
 
-		float gTerm = 1 / (scene->camera.Afilm * cosThetaSqr * cosThetaSqr);
-		col = gTerm * col;
+		float We = 1 / (scene->camera.Afilm * cosThetaSqr * cosThetaSqr);
+		col = We * col;
 
 		film->splat(x, y, col);
 	}
@@ -643,8 +645,8 @@ public:
 		
 		if (shadingData.t < FLT_MAX) {
 			if (shadingData.bsdf->isLight()) {
-				//Colour col = shadingData.bsdf->emit(shadingData, shadingData.wo);
-				//connectToCamera(shadingData.x, shadingData.sNormal, pathThroughput * col * Le);
+				Colour col = shadingData.bsdf->emit(shadingData, shadingData.wo);
+				connectToCamera(shadingData.x, shadingData.sNormal, pathThroughput * col * Le);
 				return;
 			}
 

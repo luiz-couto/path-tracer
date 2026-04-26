@@ -582,8 +582,13 @@ public:
 
 		// How to compute gTerm?
 
-		Vec3 dirToCamera = (cameraOrigin - p).normalize();
+		Vec3 dirToCamera = (p - cameraOrigin).normalize();
 		float cosTheta = cameraNormal.dot(dirToCamera);
+		if (cosTheta < 0) return;
+
+		bool isVisible = scene->visible(p, cameraOrigin);
+		if (!isVisible) return;
+
 		float cosThetaSqr = cosTheta * cosTheta;
 
 		float gTerm = 1 / (scene->camera.Afilm * cosThetaSqr * cosThetaSqr);
@@ -606,7 +611,8 @@ public:
 			Colour col = sampledLight->evaluate(-wi) / pdfPosition;
 
 			ShadingData shadingData;
-			Vec3 normal = sampledLight->normal(shadingData, p);
+			Vec3 normal = sampledLight->normal(shadingData, -wi);
+			
 			Ray ray;
 			ray.init(p + (normal * EPSILON), wi);
 
@@ -615,6 +621,7 @@ public:
 			return;
 		}
 
+		// For env light, we can just sample a direction and trace a ray in that direction, and if it hits a light source we connect it to the camera
 		float pdfDirection;
 		Vec3 wi = sampledLight->sampleDirectionFromLight(sampler, pdfDirection);
 		Colour col = sampledLight->evaluate(-wi) / pdfDirection;
@@ -624,6 +631,8 @@ public:
 
 		Colour pathThroughput = Colour(1.0f, 1.0f, 1.0f);
 		lightTracePath(ray, pathThroughput, col, sampler, 0);
+		
+
 	}
 
 	void lightTracePath(Ray &r , Colour pathThroughput, Colour Le, Sampler *sampler, int depth) {
@@ -634,8 +643,8 @@ public:
 		
 		if (shadingData.t < FLT_MAX) {
 			if (shadingData.bsdf->isLight()) {
-				//Colour col = shadingData.bsdf->emit(shadingData, shadingData.wo);
-				//connectToCamera(shadingData.x, shadingData.sNormal, col * pathThroughput);
+				Colour col = shadingData.bsdf->emit(shadingData, shadingData.wo);
+				connectToCamera(shadingData.x, shadingData.sNormal, pathThroughput * col * Le);
 				return;
 			}
 
@@ -683,8 +692,8 @@ public:
 		}
 
 		// Should I do this?
-		//Colour col = pathThroughput * scene->background->evaluate(r.dir);
-		//connectToCamera(r.o, Vec3(0, 1, 0), col);
+		Colour col = pathThroughput * scene->background->evaluate(r.dir);
+		connectToCamera(r.o, Vec3(0, 1, 0), col);
 		return;
 	}
 

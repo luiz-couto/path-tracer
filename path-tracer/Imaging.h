@@ -231,25 +231,38 @@ public:
 
 		oidn::DeviceRef device = oidn::newDevice(oidn::DeviceType::CPU);
 		device.commit();
+		const char* errorMessage;
+		if (device.getError(errorMessage) != oidn::Error::None) {
+			std::cout << "OIDN device error: " << errorMessage << std::endl;
+			delete[] denoiserInput;
+			return;
+		}
 
 		oidn::FilterRef filter = device.newFilter("RT");
 		filter.setImage("color", denoiserInput, oidn::Format::Float3, width, height);
-		filter.setImage("albedo", filmAlbedos, oidn::Format::Float3, width, height);
-		filter.setImage("normal", filmNormals, oidn::Format::Float3, width, height);
+		//filter.setImage("albedo", filmAlbedos, oidn::Format::Float3, width, height);
+		//filter.setImage("normal", filmNormals, oidn::Format::Float3, width, height);
 		filter.setImage("output", output, oidn::Format::Float3, width, height);
 		filter.set("hdr", true);
-		filter.set("prefilter", true);
 
 		filter.commit();
-		filter.execute();
-
-		const char* errorMessage;
 		if (device.getError(errorMessage) != oidn::Error::None) {
-			std::cout << "Error: " << errorMessage << std::endl;
+			std::cout << "OIDN filter commit error: " << errorMessage << std::endl;
+			delete[] denoiserInput;
+			return;
 		}
 
+		filter.execute();
+		if (device.getError(errorMessage) != oidn::Error::None) {
+			std::cout << "OIDN execute error: " << errorMessage << std::endl;
+			delete[] denoiserInput;
+			return;
+		}
+
+		std::cout << "OIDN OK - output[0] = " << output[0].r << " " << output[0].g << " " << output[0].b << std::endl;
+
 		delete[] denoiserInput;
-		
+
 	}
 
 	void tonemap(int x, int y, unsigned char& r, unsigned char& g, unsigned char& b, float exposure = 1.0f) {

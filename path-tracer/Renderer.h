@@ -11,7 +11,6 @@
 #include <thread>
 #include <functional>
 #include <atomic>
-#include <OpenImageDenoise/oidn.hpp>
 
 #define MAX_DEPTH_PATH_TRACE 5
 #define MIN_DEPTH_FOR_RUSSIAN_ROULETTE 3
@@ -328,22 +327,25 @@ public:
 					}
 
 					film->splat(px, py, col);
-					film->setNormal(px, py, normalCol);
-					film->setAlbedo(px, py, albedoCol);
+
+					if (!film->normalSet) {
+						film->setNormal(px, py, normalCol);
+						film->setAlbedo(px, py, albedoCol);
+					}
 
 					//lightTrace(&this->samplers[tID]);
 				}
 			}
 
-			for (unsigned int y = yStart; y < yStart + TILE_SIZE; y++) {
-				if (y >= filmHeight) continue;
-				for (unsigned int x = xStart; x < xStart + TILE_SIZE; x++) {
-					if (x >= filmWidth) break;
-					unsigned char r, g, b;
-					film->tonemap(x, y, r, g, b);
-					canvas->draw(x, y, r, g, b);
-				}
-			}
+			// for (unsigned int y = yStart; y < yStart + TILE_SIZE; y++) {
+			// 	if (y >= filmHeight) continue;
+			// 	for (unsigned int x = xStart; x < xStart + TILE_SIZE; x++) {
+			// 		if (x >= filmWidth) break;
+			// 		unsigned char r, g, b;
+			// 		film->tonemap(x, y, r, g, b);
+			// 		//canvas->draw(x, y, r, g, b);
+			// 	}
+			// }
 		}
 	}
 
@@ -361,6 +363,19 @@ public:
 		for (int i=0; i<numProcs; i++) {
 			threads[i]->join();
 		}
+
+		film->runDenoiserAndSetOutput();
+
+		for (unsigned int y = 0; y < filmHeight; y++) {
+			for (unsigned int x = 0; x < filmWidth; x++) {
+				unsigned char r, g, b;
+				film->filmicTonemap(x, y, r, g, b);
+				canvas->draw(x, y, r, g, b);
+			}
+		}
+
+		film->normalSet = true;
+		film->albedoSet = true;
 	}
 
 	void threadProcessInstantRadiosity(unsigned int tID, std::atomic<unsigned int> &tileID, unsigned int filmWidth, unsigned int filmHeight) {

@@ -20,7 +20,6 @@
 # Compiled Dynamic libraries
 *.so
 *.dylib
-*.dll
 
 # Fortran module files
 *.mod
@@ -42,5 +41,9 @@
 
 # Visual Studio files
 **/.vs/**
-**/Debug/**
 .vscode
+
+*.log
+*.tlog
+*.iobj
+*.idb

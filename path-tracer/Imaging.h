@@ -7,6 +7,7 @@
 #define __STDC_LIB_EXT1__
 #include "stb_image_write.h"
 #include <algorithm>
+#include <OpenImageDenoise/oidn.hpp>
 
 // Stop warnings about buffer overruns if size is zero. Size should never be zero and if it is the code handles it.
 #pragma warning( disable : 6386)
@@ -180,6 +181,10 @@ public:
 	Colour* film;
 	Colour* filmNormals;
 	Colour* filmAlbedos;
+	Colour* output;
+
+	bool normalSet = false;
+	bool albedoSet = false;
 
 	unsigned int width;
 	unsigned int height;
@@ -218,6 +223,35 @@ public:
 		filmAlbedos[(int(y) * width) + int(x)] = L;
 	}
 
+	void runDenoiserAndSetOutput() {
+		Colour* denoiserInput = new Colour[width * height];
+		for (unsigned int i = 0; i < (width * height); i++) {
+			denoiserInput[i] = film[i] / (float)SPP;
+		}
+
+		oidn::DeviceRef device = oidn::newDevice(oidn::DeviceType::CPU);
+		device.commit();
+
+		oidn::FilterRef filter = device.newFilter("RT");
+		filter.setImage("color", denoiserInput, oidn::Format::Float3, width, height);
+		filter.setImage("albedo", filmAlbedos, oidn::Format::Float3, width, height);
+		filter.setImage("normal", filmNormals, oidn::Format::Float3, width, height);
+		filter.setImage("output", output, oidn::Format::Float3, width, height);
+		filter.set("hdr", true);
+		filter.set("prefilter", true);
+
+		filter.commit();
+		filter.execute();
+
+		const char* errorMessage;
+		if (device.getError(errorMessage) != oidn::Error::None) {
+			std::cout << "Error: " << errorMessage << std::endl;
+		}
+
+		delete[] denoiserInput;
+		
+	}
+
 	void tonemap(int x, int y, unsigned char& r, unsigned char& g, unsigned char& b, float exposure = 1.0f) {
 		// Return a tonemapped pixel at coordinates x, y
 		return filmicTonemap(x, y, r, g, b, exposure);
@@ -240,8 +274,8 @@ public:
 
 	void filmicTonemap(int x, int y, unsigned char& r, unsigned char& g, unsigned char& b, float exposure = 1.0f) {
 		// Use average color per pixel (accumulated / SPP)
-		Colour curr = film[(y * width) + x];
-		if (SPP > 0) curr = curr / (float)SPP;
+		Colour curr = filmAlbedos[(y * width) + x];
+		//if (SPP > 0) curr = curr / (float)SPP;
 
 		float expFac = 1 / 2.2;
 		float W = 11.2;
@@ -258,6 +292,10 @@ public:
 		r = std::clamp(rOut, 0.f, 1.f) * 255;
 		g = std::clamp(gOut, 0.f, 1.f) * 255;
 		b = std::clamp(bOut, 0.f, 1.f) * 255;
+
+		//std::cout << "R: " << rOut << ", G: " << gOut << ", B: " << bOut << std::endl;
+
+		//film[(y * width) + x] = Colour(rOut, gOut, bOut);
 	}
 
 	// Do not change any code below this line
@@ -267,6 +305,7 @@ public:
 		film = new Colour[width * height];
 		filmNormals = new Colour[width * height];
 		filmAlbedos = new Colour[width * height];
+		output = new Colour[width * height];
 
 		clear();
 		filter = _filter;
@@ -276,6 +315,11 @@ public:
 		memset(film, 0, width * height * sizeof(Colour));
 		memset(filmNormals, 0, width * height * sizeof(Colour));
 		memset(filmAlbedos, 0, width * height * sizeof(Colour));
+		memset(output, 0, width * height * sizeof(Colour));
+
+		normalSet = false;
+		albedoSet = false;
+
 		SPP = 0;
 	}
 

@@ -274,7 +274,7 @@ public:
 
 	void filmicTonemap(int x, int y, unsigned char& r, unsigned char& g, unsigned char& b, float exposure = 1.0f) {
 		// Use average color per pixel (accumulated / SPP)
-		Colour curr = filmAlbedos[(y * width) + x];
+		Colour curr = output[(y * width) + x];
 		//if (SPP > 0) curr = curr / (float)SPP;
 
 		float expFac = 1 / 2.2;

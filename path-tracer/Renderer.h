@@ -316,8 +316,8 @@ public:
 					float px = x + samplers->next();
 					float py = y + samplers->next();
 					Ray ray = scene->camera.generateRay(px, py);
-					// // Colour col = viewNormals(ray);
-					// // Colour col = albedo(ray);
+					Colour normalCol = viewNormals(ray);
+					Colour albedoCol = albedo(ray);
 
 					Colour pathThroughput(1.0f, 1.0f, 1.0f);
 					Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
@@ -326,7 +326,10 @@ public:
 					if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {
 						continue;
 					}
+
 					film->splat(px, py, col);
+					film->setNormal(px, py, normalCol);
+					film->setAlbedo(px, py, albedoCol);
 
 					//lightTrace(&this->samplers[tID]);
 				}

@@ -178,6 +178,9 @@ class Film
 {
 public:
 	Colour* film;
+	Colour* filmNormals;
+	Colour* filmAlbedos;
+
 	unsigned int width;
 	unsigned int height;
 	int SPP;
@@ -205,6 +208,14 @@ public:
 		for (int i = 0; i < used; i++) {
 			film[indices[i]] = film[indices[i]] + (L * filterWeights[i] / total);
 		}
+	}
+
+	void setNormal(const float x, const float y, const Colour& L) {
+		filmNormals[(int(y) * width) + int(x)] = L;
+	}
+
+	void setAlbedo(const float x, const float y, const Colour& L) {
+		filmAlbedos[(int(y) * width) + int(x)] = L;
 	}
 
 	void tonemap(int x, int y, unsigned char& r, unsigned char& g, unsigned char& b, float exposure = 1.0f) {
@@ -250,25 +261,29 @@ public:
 	}
 
 	// Do not change any code below this line
-	void init(int _width, int _height, ImageFilter* _filter)
-	{
+	void init(int _width, int _height, ImageFilter* _filter) {
 		width = _width;
 		height = _height;
 		film = new Colour[width * height];
+		filmNormals = new Colour[width * height];
+		filmAlbedos = new Colour[width * height];
+
 		clear();
 		filter = _filter;
 	}
-	void clear()
-	{
+
+	void clear() {
 		memset(film, 0, width * height * sizeof(Colour));
+		memset(filmNormals, 0, width * height * sizeof(Colour));
+		memset(filmAlbedos, 0, width * height * sizeof(Colour));
 		SPP = 0;
 	}
-	void incrementSPP()
-	{
+
+	void incrementSPP() {
 		SPP++;
 	}
-	void save(std::string filename)
-	{
+
+	void save(std::string filename) {
 		Colour* hdrpixels = new Colour[width * height];
 		for (unsigned int i = 0; i < (width * height); i++)
 		{

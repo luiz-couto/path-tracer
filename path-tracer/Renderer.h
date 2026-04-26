@@ -116,11 +116,10 @@ public:
 		}
 	}
 
-	Colour computeDirect(ShadingData shadingData, Sampler* sampler)
-	{
+	Colour computeDirect(ShadingData shadingData, Sampler* sampler) {
+
 		// Is surface is specular we cannot computing direct lighting
-		if (shadingData.bsdf->isPureSpecular() == true)
-		{
+		if (shadingData.bsdf->isPureSpecular() == true) {
 			return Colour(0.0f, 0.0f, 0.0f);
 		}
 
@@ -313,21 +312,22 @@ public:
 					// float px = x + 0.5f;
 					// float py = y + 0.5f;
 
-					float px = x + samplers->next();
-					float py = y + samplers->next();
-					Ray ray = scene->camera.generateRay(px, py);
-					// Colour col = viewNormals(ray);
-					// Colour col = albedo(ray);
+					// float px = x + samplers->next();
+					// float py = y + samplers->next();
+					// Ray ray = scene->camera.generateRay(px, py);
+					// // Colour col = viewNormals(ray);
+					// // Colour col = albedo(ray);
 
-					Colour pathThroughput(1.0f, 1.0f, 1.0f);
+					// Colour pathThroughput(1.0f, 1.0f, 1.0f);
+					// Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
 
-					Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
+					// //Colour col = direct(ray, &samplers[0]);
+					// if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {
+					// 	continue;
+					// }
+					// film->splat(px, py, col);
 
-					//Colour col = direct(ray, &samplers[0]);
-					if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {
-						continue;
-					}
-					film->splat(px, py, col);
+					lightTrace(&this->samplers[tID]);
 				}
 			}
 
@@ -340,7 +340,6 @@ public:
 					canvas->draw(x, y, r, g, b);
 				}
 			}
-
 		}
 	}
 
@@ -545,6 +544,159 @@ public:
 				canvas->draw(x, y, r, g, b);
 			}
 		}
+	}
+
+	void renderLightTraceSequential() {
+		film->incrementSPP();
+
+		// for (int i=0; i<1000; i++) {
+		// 	lightTrace(&this->samplers[0]);
+		// }
+		
+		for (unsigned int y = 0; y < film->height; y++) {
+			for (unsigned int x = 0; x < film->width; x++) {
+				lightTrace(&this->samplers[0]);
+			}
+		}
+
+		for (unsigned int y = 0; y < film->height; y++) {
+			for (unsigned int x = 0; x < film->width; x++) {
+				unsigned char r, g, b;
+				film->tonemap(x, y, r, g, b);
+				canvas->draw(x, y, r, g, b);
+			}
+		}
+	}
+
+	void connectToCamera(Vec3 p, Vec3 n, Colour col) {
+		float x,y;
+		bool isPOnCamera = scene->camera.projectOntoCamera(p, x, y);
+
+		if (!isPOnCamera) return;
+
+		Vec3 cameraNormal = scene->camera.viewDirection;
+		Vec3 cameraOrigin = scene->camera.origin;
+
+		Vec3 cameraToPoint = (p - cameraOrigin).normalize();
+		Vec3 pointToCamera = -cameraToPoint;
+		
+		float cosTheta = cameraNormal.dot(cameraToPoint);
+		if (cosTheta < 0) return;
+
+		float pointCosTheta = pointToCamera.dot(n);
+		//if (pointCosTheta < 0) return;
+
+		float gTerm = cosTheta * pointCosTheta;
+
+		bool isVisible = scene->visible(p, cameraOrigin);
+		if (!isVisible) return;
+
+		float cosThetaSqr = cosTheta * cosTheta;
+
+		float We = 1 / (scene->camera.Afilm * cosThetaSqr * cosThetaSqr);
+		col = We * col;
+
+		film->splat(x, y, col);
+	}
+
+	void lightTrace(Sampler *sampler) {
+		float pmf;
+		Light* sampledLight = scene->sampleLight(sampler, pmf);
+
+		if (sampledLight->isArea()) {
+			float pdfPosition;
+			Vec3 p = sampledLight->samplePositionFromLight(sampler, pdfPosition);
+
+			float pdfDirection;
+			Vec3 wi = sampledLight->sampleDirectionFromLight(sampler, pdfDirection);
+
+			Colour col = sampledLight->evaluate(-wi) / pdfPosition;
+			
+			ShadingData shadingData;
+			Vec3 normal = sampledLight->normal(shadingData, -wi);
+			
+			connectToCamera(p, normal, col);
+
+			Ray ray;
+			ray.init(p + (normal * EPSILON), wi);
+
+			Colour pathThroughput = Colour(1.0f, 1.0f, 1.0f);
+			lightTracePath(ray, pathThroughput, col, sampler, 0);
+			return;
+		}
+
+		// For env light, we can just sample a direction and trace a ray in that direction, and if it hits a light source we connect it to the camera
+		float pdfDirection;
+		Vec3 wi = sampledLight->sampleDirectionFromLight(sampler, pdfDirection);
+		Colour col = sampledLight->evaluate(-wi) / pdfDirection;
+
+		Ray ray;
+		ray.init(scene->camera.origin, wi);
+
+		Colour pathThroughput = Colour(1.0f, 1.0f, 1.0f);
+		lightTracePath(ray, pathThroughput, col, sampler, 0);
+	}
+
+	void lightTracePath(Ray &r , Colour pathThroughput, Colour Le, Sampler *sampler, int depth) {
+		if (depth > MAX_DEPTH_PATH_TRACE) return;
+		
+		IntersectionData intersection = scene->traverse(r);
+		ShadingData shadingData = scene->calculateShadingData(intersection, r);
+		
+		if (shadingData.t < FLT_MAX) {
+			if (shadingData.bsdf->isLight()) {
+				Colour col = shadingData.bsdf->emit(shadingData, shadingData.wo);
+				connectToCamera(shadingData.x, shadingData.sNormal, pathThroughput * col * Le);
+				return;
+			}
+
+			Vec3 wi = scene->camera.origin - shadingData.x;
+			wi = wi.normalize();
+
+			float cosTheta = wi.dot(shadingData.sNormal);
+			if (cosTheta < 0) cosTheta = 0.0f;
+
+			bool isVisible = scene->visible(shadingData.x, scene->camera.origin);
+
+			Colour bsdfValue = shadingData.bsdf->evaluate(shadingData, wi);
+			Colour newThroughput = pathThroughput * bsdfValue * cosTheta * Le;
+
+			if (depth >= MIN_DEPTH_FOR_RUSSIAN_ROULETTE) {
+				float q = newThroughput.Lum();
+				float qClamped = std::min(q, 1.0f);
+				float epsilon = sampler->next();
+				if (epsilon > qClamped) {
+					//connectToCamera(shadingData.x, shadingData.sNormal, newThroughput);
+					return;
+				}
+
+				newThroughput = newThroughput / qClamped;
+			}
+
+			if (!shadingData.bsdf->isPureSpecular() && isVisible) {
+            	connectToCamera(shadingData.x, shadingData.sNormal, newThroughput);
+        	}
+
+			Colour bounceColour;
+			float bouncePdf;
+			Vec3 bounceDir = shadingData.bsdf->sample(shadingData, sampler, bounceColour, bouncePdf);
+
+			Colour bounceBsdf = shadingData.bsdf->evaluate(shadingData, bounceDir);
+			float cosBounce = bounceDir.dot(shadingData.sNormal);
+			if (cosBounce < 0) cosBounce = 0.0f;
+
+			Colour bounceThroughput = pathThroughput * Le * bounceBsdf * cosBounce / bouncePdf;
+
+			Ray newRay;
+			newRay.init(shadingData.x + (bounceDir * EPSILON), bounceDir);
+
+			return lightTracePath(newRay, bounceThroughput, Colour(1.0f, 1.0f, 1.0f), sampler, depth + 1); // Or should I use Le here as well?
+		}
+
+		// Should I do this?
+		Colour col = pathThroughput * scene->background->evaluate(r.dir);
+		connectToCamera(r.o, Vec3(0, 1, 0), col);
+		return;
 	}
 
 	int getSPP() {

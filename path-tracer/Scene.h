@@ -41,7 +41,6 @@ public:
 		viewDirection = viewDirection.normalize();
 	}
 
-	// Add code here
 	Ray generateRay(float x, float y) {
 		float xc = ((2 * x) / (width - 1)) - 1;
 		float yc = -(((2 * y) / (height - 1)) - 1);
@@ -54,8 +53,7 @@ public:
 		return Ray(origin, rayDir);
 	}
 
-	bool projectOntoCamera(const Vec3& p, float& x, float& y)
-	{
+	bool projectOntoCamera(const Vec3& p, float& x, float& y) {
 		Vec3 pview = cameraToView.mulPoint(p);
 		Vec3 pproj = projectionMatrix.mulPointAndPerspectiveDivide(pview);
 		x = (pproj.x + 1.0f) * 0.5f;

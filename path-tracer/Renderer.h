@@ -116,6 +116,73 @@ public:
 		}
 	}
 
+	void lightSamplingMIS(ShadingData shadingData, Sampler* sampler, Colour &result) {
+		float pmf;
+		Light* sampledLight = scene->sampleLightWeighted(sampler, pmf);
+
+		Colour finalColor;
+		float pdf;
+		Vec3 wi;
+
+		if (sampledLight->isArea()) {
+			Colour emittedColour;
+			Vec3 sampledPoint = sampledLight->sample(shadingData, sampler, emittedColour, pdf);
+
+			wi = sampledPoint - shadingData.x;
+			wi = wi.normalize();
+
+			float cosTheta = shadingData.sNormal.dot(wi);
+			if (cosTheta < 0) cosTheta = 0;
+
+			Vec3 normalLine = sampledLight->normal(shadingData, wi);
+			float cosThetaLine = -wi.dot(normalLine);
+			if (cosThetaLine < 0) cosThetaLine = 0;
+
+			float denominator = (shadingData.x - sampledPoint).lengthSq();
+
+			float gTerm = (cosTheta * cosThetaLine) / denominator;
+			bool isVisible = scene->visible(shadingData.x, sampledPoint);
+
+			float resultGTerm = gTerm * isVisible;
+
+			finalColor = shadingData.bsdf->evaluate(shadingData, wi) * emittedColour * resultGTerm;
+
+		} else {
+			Colour emittedColour;
+			wi = sampledLight->sample(shadingData, sampler, emittedColour, pdf);
+
+			float cosTheta = shadingData.sNormal.dot(wi);
+			if (cosTheta < 0) cosTheta = 0;
+
+			float gTerm = cosTheta;
+
+			float maxDist = (scene->bounds.max - scene->bounds.min).length();
+			Vec3 farPoint = shadingData.x + (wi * maxDist);
+
+			bool isVisible = scene->visible(shadingData.x, farPoint);
+
+			float resultGTerm = gTerm * isVisible;
+			finalColor = shadingData.bsdf->evaluate(shadingData, wi) * emittedColour * resultGTerm;
+		}
+
+		// MIS
+		float totalLightPDF = pdf * pmf;
+		float brdfPDF = shadingData.bsdf->PDF(shadingData, wi);
+		float weight = totalLightPDF / (totalLightPDF + brdfPDF);
+
+		if (totalLightPDF > 0) {
+			result = result + (finalColor / totalLightPDF) * weight;
+		}
+	}
+
+	Colour computeDirectMIS(ShadingData shadingData, Sampler* sampler) {
+		if (shadingData.bsdf->isPureSpecular() == true) {
+        	return Colour(0.0f, 0.0f, 0.0f);
+    	}
+
+    	Colour result(0.0f, 0.0f, 0.0f);
+	}
+
 	Colour computeDirect(ShadingData shadingData, Sampler* sampler) {
 
 		// Is surface is specular we cannot computing direct lighting

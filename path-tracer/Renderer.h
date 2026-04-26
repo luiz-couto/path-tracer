@@ -609,10 +609,12 @@ public:
 			Vec3 wi = sampledLight->sampleDirectionFromLight(sampler, pdfDirection);
 
 			Colour col = sampledLight->evaluate(-wi) / pdfPosition;
-
+			
 			ShadingData shadingData;
 			Vec3 normal = sampledLight->normal(shadingData, -wi);
 			
+			connectToCamera(p, normal, col);
+
 			Ray ray;
 			ray.init(p + (normal * EPSILON), wi);
 
@@ -631,8 +633,6 @@ public:
 
 		Colour pathThroughput = Colour(1.0f, 1.0f, 1.0f);
 		lightTracePath(ray, pathThroughput, col, sampler, 0);
-		
-
 	}
 
 	void lightTracePath(Ray &r , Colour pathThroughput, Colour Le, Sampler *sampler, int depth) {
@@ -643,8 +643,8 @@ public:
 		
 		if (shadingData.t < FLT_MAX) {
 			if (shadingData.bsdf->isLight()) {
-				Colour col = shadingData.bsdf->emit(shadingData, shadingData.wo);
-				connectToCamera(shadingData.x, shadingData.sNormal, pathThroughput * col * Le);
+				//Colour col = shadingData.bsdf->emit(shadingData, shadingData.wo);
+				//connectToCamera(shadingData.x, shadingData.sNormal, pathThroughput * col * Le);
 				return;
 			}
 

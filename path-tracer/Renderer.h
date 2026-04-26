@@ -175,12 +175,16 @@ public:
 		}
 	}
 
+
 	Colour computeDirectMIS(ShadingData shadingData, Sampler* sampler) {
 		if (shadingData.bsdf->isPureSpecular() == true) {
         	return Colour(0.0f, 0.0f, 0.0f);
     	}
 
     	Colour result(0.0f, 0.0f, 0.0f);
+
+		lightSamplingMIS(shadingData, sampler, result);
+		return result;
 	}
 
 	Colour computeDirect(ShadingData shadingData, Sampler* sampler) {
@@ -278,7 +282,7 @@ public:
 			float pdf;
 			Vec3 worldDirection = shadingData.bsdf->sample(shadingData, sampler, indirect, pdf);
 
-			Colour directLight = computeDirect(shadingData, sampler);
+			Colour directLight = computeDirectMIS(shadingData, sampler);
 			//Colour output = (directLight) * pathThroughput;
 
 			float cosTheta = std::max(fabsf(worldDirection.dot(shadingData.sNormal)), 0.0f);

@@ -276,11 +276,13 @@ public:
 
 		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
 
-
 		Vec3 wm = Vec3(sinf(thetaM) * cosf(phiM), sinf(thetaM) * sinf(phiM), cosf(thetaM));
 		Vec3 wi = -woLocal +  (wm * (2 * wm.dot(woLocal)));
+		Vec3 wiWorld = shadingData.frame.toWorld(wi);
+
 		pdf = (ShadingHelper::Dggx(wm, alpha) * cosf(thetaM)) / (4 * wm.dot(woLocal));
-		return shadingData.frame.toWorld(wi);
+		reflectedColour = evaluate(shadingData, wiWorld);
+		return wiWorld;
 	}
 
 	Colour evaluate(const ShadingData& shadingData, const Vec3& wi) {

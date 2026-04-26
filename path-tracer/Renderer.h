@@ -175,6 +175,36 @@ public:
 		}
 	}
 
+	void brdfSamplingMIS(ShadingData shadingData, Sampler* sampler, Colour &result) {
+		Colour color;
+		float pdf;
+		Vec3 wi = shadingData.bsdf->sample(shadingData, sampler, color, pdf);
+		if (pdf <= 0) return;
+
+		float cosTheta = std::max(fabsf(wi.dot(shadingData.sNormal)), 0.0f);
+
+		Ray ray;
+		ray.init(shadingData.x + (wi * EPSILON), wi);
+		IntersectionData intersectionData = scene->traverse(ray);
+
+		if (intersectionData.t < FLT_MAX) {
+			ShadingData hitData = scene->calculateShadingData(intersectionData, ray);
+			if (hitData.bsdf->isLight()) {
+				Colour emitted = hitData.bsdf->emit(hitData, hitData.wo);
+				
+				Vec3 dir = hitData.x - shadingData.x;
+				float distSq = dir.lengthSq();
+				float cosThetaLight = std::abs(dir.normalize().dot(hitData.sNormal));
+				float lightPDF = cosTheta * cosThetaLight / distSq;
+				
+				float weight = pdf / (pdf + lightPDF);
+				color = color * emitted * cosTheta;
+				
+				result = result + (color / pdf) * weight;
+			}
+		}
+	}
+
 
 	Colour computeDirectMIS(ShadingData shadingData, Sampler* sampler) {
 		if (shadingData.bsdf->isPureSpecular() == true) {
@@ -184,6 +214,8 @@ public:
     	Colour result(0.0f, 0.0f, 0.0f);
 
 		lightSamplingMIS(shadingData, sampler, result);
+		brdfSamplingMIS(shadingData, sampler, result);
+	
 		return result;
 	}
 
@@ -383,8 +415,8 @@ public:
 					// float px = x + 0.5f;
 					// float py = y + 0.5f;
 
-					float px = x + samplers->next();
-					float py = y + samplers->next();
+					float px = x + samplers[tID].next();
+					float py = y + samplers[tID].next();
 					Ray ray = scene->camera.generateRay(px, py);
 					Colour normalCol = viewNormals(ray);
 					Colour albedoCol = albedo(ray);

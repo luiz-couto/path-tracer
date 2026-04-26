@@ -605,12 +605,25 @@ public:
 
 			Colour col = sampledLight->evaluate(-wi) / pdfPosition;
 
+			ShadingData shadingData;
+			Vec3 normal = sampledLight->normal(shadingData, p);
 			Ray ray;
-			ray.init(p, wi);
+			ray.init(p + (normal * EPSILON), wi);
 
 			Colour pathThroughput = Colour(1.0f, 1.0f, 1.0f);
 			lightTracePath(ray, pathThroughput, col, sampler, 0);
+			return;
 		}
+
+		float pdfDirection;
+		Vec3 wi = sampledLight->sampleDirectionFromLight(sampler, pdfDirection);
+		Colour col = sampledLight->evaluate(-wi) / pdfDirection;
+
+		Ray ray;
+		ray.init(scene->camera.origin, wi);
+
+		Colour pathThroughput = Colour(1.0f, 1.0f, 1.0f);
+		lightTracePath(ray, pathThroughput, col, sampler, 0);
 	}
 
 	void lightTracePath(Ray &r , Colour pathThroughput, Colour Le, Sampler *sampler, int depth) {
@@ -621,8 +634,8 @@ public:
 		
 		if (shadingData.t < FLT_MAX) {
 			if (shadingData.bsdf->isLight()) {
-				Colour col = shadingData.bsdf->emit(shadingData, shadingData.wo);
-				connectToCamera(shadingData.x, shadingData.sNormal, col);
+				//Colour col = shadingData.bsdf->emit(shadingData, shadingData.wo);
+				//connectToCamera(shadingData.x, shadingData.sNormal, col * pathThroughput);
 				return;
 			}
 
@@ -671,7 +684,7 @@ public:
 
 		// Should I do this?
 		//Colour col = pathThroughput * scene->background->evaluate(r.dir);
-		//connectToCamera(shadingData.x, shadingData.sNormal, col);
+		//connectToCamera(r.o, Vec3(0, 1, 0), col);
 		return;
 	}
 

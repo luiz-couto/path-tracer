@@ -123,6 +123,8 @@ public:
 		Colour finalColor;
 		float pdf;
 		Vec3 wi;
+		float cosThetaLine = 0;
+		float distSqr = 0;
 
 		if (sampledLight->isArea()) {
 			Colour emittedColour;
@@ -135,12 +137,12 @@ public:
 			if (cosTheta < 0) cosTheta = 0;
 
 			Vec3 normalLine = sampledLight->normal(shadingData, wi);
-			float cosThetaLine = -wi.dot(normalLine);
+			cosThetaLine = -wi.dot(normalLine);
 			if (cosThetaLine < 0) cosThetaLine = 0;
 
-			float denominator = (shadingData.x - sampledPoint).lengthSq();
+			distSqr = (shadingData.x - sampledPoint).lengthSq();
 
-			float gTerm = (cosTheta * cosThetaLine) / denominator;
+			float gTerm = (cosTheta * cosThetaLine) / distSqr;
 			bool isVisible = scene->visible(shadingData.x, sampledPoint);
 
 			float resultGTerm = gTerm * isVisible;
@@ -168,6 +170,10 @@ public:
 		// MIS
 		float totalLightPDF = pdf * pmf;
 		float brdfPDF = shadingData.bsdf->PDF(shadingData, wi);
+		if (sampledLight->isArea() && distSqr > 0) {
+			brdfPDF = brdfPDF * cosThetaLine / distSqr;
+		}
+
 		float weight = totalLightPDF / (totalLightPDF + brdfPDF);
 
 		if (totalLightPDF > 0) {

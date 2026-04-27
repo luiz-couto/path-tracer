@@ -141,12 +141,10 @@ class BoxFilter : public ImageFilter
 {
 public:
 	float filter(float x, float y) const {
-		// if (fabsf(x) < 0.5f && fabs(y) < 0.5f)
-		// {
-		// 	return 1.0f;
-		// }
-		// return 0;
-		return 1.0f;
+		if (fabsf(x) <= 0.5f && fabsf(y) <= 0.5f) {
+			return 1.0f;
+		}
+		return 0.0f;
 	}
 	int size() const
 	{
@@ -231,38 +229,25 @@ public:
 
 		oidn::DeviceRef device = oidn::newDevice(oidn::DeviceType::CPU);
 		device.commit();
-		const char* errorMessage;
-		if (device.getError(errorMessage) != oidn::Error::None) {
-			std::cout << "OIDN device error: " << errorMessage << std::endl;
-			delete[] denoiserInput;
-			return;
-		}
-
+		
 		oidn::FilterRef filter = device.newFilter("RT");
 		filter.setImage("color", denoiserInput, oidn::Format::Float3, width, height);
-		//filter.setImage("albedo", filmAlbedos, oidn::Format::Float3, width, height);
-		//filter.setImage("normal", filmNormals, oidn::Format::Float3, width, height);
+		filter.setImage("albedo", filmAlbedos, oidn::Format::Float3, width, height);
+		filter.setImage("normal", filmNormals, oidn::Format::Float3, width, height);
 		filter.setImage("output", output, oidn::Format::Float3, width, height);
 		filter.set("hdr", true);
-
+		
 		filter.commit();
-		if (device.getError(errorMessage) != oidn::Error::None) {
-			std::cout << "OIDN filter commit error: " << errorMessage << std::endl;
-			delete[] denoiserInput;
-			return;
-		}
-
 		filter.execute();
+
+		const char* errorMessage;
 		if (device.getError(errorMessage) != oidn::Error::None) {
 			std::cout << "OIDN execute error: " << errorMessage << std::endl;
 			delete[] denoiserInput;
 			return;
 		}
 
-		std::cout << "OIDN OK - output[0] = " << output[0].r << " " << output[0].g << " " << output[0].b << std::endl;
-
 		delete[] denoiserInput;
-
 	}
 
 	void tonemap(int x, int y, unsigned char& r, unsigned char& g, unsigned char& b, float exposure = 1.0f) {
@@ -346,7 +331,7 @@ public:
 		{
 			hdrpixels[i] = film[i] / (float)SPP;
 		}
-		stbi_write_hdr(filename.c_str(), width, height, 3, (float*)hdrpixels);
+		stbi_write_hdr(filename.c_str(), width, height, 3, (float*)output);
 		delete[] hdrpixels;
 	}
 };

@@ -117,11 +117,11 @@ int main(int argc, char* argv[]) {
 		///				V				///
 		///////////////////////////////////
 
-		bool useDenoiser = true;
+		bool useDenoiser = false;
 		
 		//rt.parallelRenderInstantRadiosity();
-		//rt.parallelRenderPathTracing();
-		rt.renderLightTraceSequential(useDenoiser);
+		rt.parallelRenderPathTracing(useDenoiser);
+		//rt.renderLightTraceSequential(useDenoiser);
 		
 		///////////////////////////////////
 		///				^				///

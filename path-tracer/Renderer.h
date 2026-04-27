@@ -455,8 +455,9 @@ public:
 		}
 	}
 
-	void parallelRenderPathTracing() {
+	void parallelRenderPathTracing(bool useDenoiser = true) {
 		film->incrementSPP();
+		film->usingDenoiser = useDenoiser;
 
 		std::atomic<unsigned int> tileID(0);
 		unsigned int filmWidth = film->width;
@@ -470,12 +471,18 @@ public:
 			threads[i]->join();
 		}
 
-		film->runDenoiserAndSetOutput();
+		if (useDenoiser) {
+			film->runDenoiserAndSetOutput();
+		}
 
 		for (unsigned int y = 0; y < filmHeight; y++) {
 			for (unsigned int x = 0; x < filmWidth; x++) {
 				unsigned char r, g, b;
-				film->filmicTonemap(x, y, r, g, b);
+				if (useDenoiser) {
+					film->filmicTonemap(x, y, r, g, b);
+				} else {
+					film->filmicTonemapWithoutDenoiser(x, y, r, g, b);
+				}
 				canvas->draw(x, y, r, g, b);
 			}
 		}
@@ -693,7 +700,9 @@ public:
 			}
 		}
 
-		film->runDenoiserAndSetOutput();
+		if (useDenoiser) {
+			film->runDenoiserAndSetOutput();
+		}
 
 		for (unsigned int y = 0; y < film->height; y++) {
 			for (unsigned int x = 0; x < film->width; x++) {

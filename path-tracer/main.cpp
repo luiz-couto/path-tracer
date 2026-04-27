@@ -12,11 +12,7 @@ void runTests()
 	// Add test code here
 }
 
-int main(int argc, char* argv[])
-{
-	// Add call to tests if required
-	// runTests()
-
+int main(int argc, char* argv[]) {
 	// Initialize default parameters
 	std::string sceneName = "scenes/kitchen";
 	std::string filename = "GI.hdr";
@@ -74,30 +70,6 @@ int main(int argc, char* argv[])
 	bool running = true;
 	GamesEngineeringBase::Timer timer;
 
-	// Plane p = Plane();
-	// Vec3 normal(0, 1, 0);
-	// p.init(normal, -1);
-
-	// Ray r = Ray();
-	// Vec3 origin(0, 0, 0);
-	// Vec3 dir(0, 1, 0);
-	// r.init(origin, dir);
-
-	// Triangle t;
-	// Vertex v0(Vec3(-1, 1, -1), Vec3(0, 1, 0), 1, 0);
-	// Vertex v1(Vec3(1, 1, -1), Vec3(0, 1, 0), 1, 0);
-	// Vertex v2(Vec3(0, 1, 1), Vec3(0, 1, 0), 1, 0);
-
-	// t.init(v0, v1, v2, 0);
-
-	// float tt, tu, tv;
-	// bool intersect = t.rayIntersectMollerTrumbore(r, tt, tu, tv);
-
-	// // float t;
-	// // bool intersect = p.rayIntersect(r, t);
-
-	// std::cout << "Ray intersects plane: " << (intersect ? "Yes" : "No") << ", t = " << tt << std::endl;
-
 	while (running)
 	{
 		canvas.checkInput();
@@ -138,7 +110,25 @@ int main(int argc, char* argv[])
 		}
 		// Time how long a render call takes
 		timer.reset();
-		rt.renderLightTraceSequential();
+		
+		///////////////////////////////////
+		///								///
+		///  CHANGE HERE THE ALGORITHM  ///
+		///				V				///
+		///////////////////////////////////
+
+		bool useDenoiser = true;
+		
+		rt.parallelRenderInstantRadiosity(useDenoiser);
+		//rt.parallelRenderPathTracing(useDenoiser);
+		//rt.renderLightTraceSequential(useDenoiser);
+		
+		///////////////////////////////////
+		///				^				///
+		///  CHANGE HERE THE ALGORITHM  ///
+		///								///
+		///////////////////////////////////
+		
 		float t = timer.dt();
 		// Write
 		std::cout << t << std::endl;

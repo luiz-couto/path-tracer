@@ -136,10 +136,12 @@ public:
 	float** rowCDF;
 	float* columnCDF;
 	float totalSum = 0;
+	float _cachedTotalPower = -1;
 
 	EnvironmentMap(Texture* _env) {
 		env = _env;
 		this->buildCDF();
+		this->totalIntegratedPower();
 	}
 
 	int cdfBinarySearch(float* list, int length, float s) {
@@ -265,6 +267,8 @@ public:
 	}
 
 	float totalIntegratedPower() {
+		if (_cachedTotalPower != -1) return _cachedTotalPower;
+
 		float total = 0;
 		for (int i = 0; i < env->height; i++)
 		{
@@ -275,7 +279,9 @@ public:
 			}
 		}
 		total = total / (float)(env->width * env->height);
-		return total * 4.0f * M_PI;
+		total = total * 4.0f * M_PI;
+		_cachedTotalPower = total;
+		return total;
 	}
 
 	Vec3 samplePositionFromLight(Sampler* sampler, float& pdf) {

@@ -63,7 +63,7 @@ public:
 		// First pass
 		for (int i=0; i<INST_RAD_N; i++) {
 			float pmf;
-			Light* sampledLight = scene->sampleLight(sampler, pmf); // Use MIS later!
+			Light* sampledLight = scene->sampleLightWeighted(sampler, pmf); // Use MIS later!
 
 			float pdf;
 			Vec3 p = sampledLight->samplePositionFromLight(sampler, pdf);
@@ -116,6 +116,115 @@ public:
 		}
 	}
 
+	void lightSamplingMIS(ShadingData shadingData, Sampler* sampler, Colour &result) {
+		float pmf;
+		Light* sampledLight = scene->sampleLightWeighted(sampler, pmf);
+
+		Colour finalColor;
+		float pdf;
+		Vec3 wi;
+		float cosThetaLine = 0;
+		float distSqr = 0;
+
+		if (sampledLight->isArea()) {
+			Colour emittedColour;
+			Vec3 sampledPoint = sampledLight->sample(shadingData, sampler, emittedColour, pdf);
+
+			wi = sampledPoint - shadingData.x;
+			wi = wi.normalize();
+
+			float cosTheta = shadingData.sNormal.dot(wi);
+			if (cosTheta < 0) cosTheta = 0;
+
+			Vec3 normalLine = sampledLight->normal(shadingData, wi);
+			cosThetaLine = -wi.dot(normalLine);
+			if (cosThetaLine < 0) cosThetaLine = 0;
+
+			distSqr = (shadingData.x - sampledPoint).lengthSq();
+
+			float gTerm = (cosTheta * cosThetaLine) / distSqr;
+			bool isVisible = scene->visible(shadingData.x, sampledPoint);
+
+			float resultGTerm = gTerm * isVisible;
+
+			finalColor = shadingData.bsdf->evaluate(shadingData, wi) * emittedColour * resultGTerm;
+
+		} else {
+			Colour emittedColour;
+			wi = sampledLight->sample(shadingData, sampler, emittedColour, pdf);
+
+			float cosTheta = shadingData.sNormal.dot(wi);
+			if (cosTheta < 0) cosTheta = 0;
+
+			float gTerm = cosTheta;
+
+			float maxDist = (scene->bounds.max - scene->bounds.min).length();
+			Vec3 farPoint = shadingData.x + (wi * maxDist);
+
+			bool isVisible = scene->visible(shadingData.x, farPoint);
+
+			float resultGTerm = gTerm * isVisible;
+			finalColor = shadingData.bsdf->evaluate(shadingData, wi) * emittedColour * resultGTerm;
+		}
+
+		// MIS
+		float totalLightPDF = pdf * pmf;
+		float brdfPDF = shadingData.bsdf->PDF(shadingData, wi);
+		if (sampledLight->isArea() && distSqr > 0) {
+			brdfPDF = brdfPDF * cosThetaLine / distSqr;
+		}
+
+		float weight = totalLightPDF / (totalLightPDF + brdfPDF);
+
+		if (totalLightPDF > 0) {
+			result = result + (finalColor / totalLightPDF) * weight;
+		}
+	}
+
+	void brdfSamplingMIS(ShadingData shadingData, Sampler* sampler, Colour &result) {
+		Colour color;
+		float pdf;
+		Vec3 wi = shadingData.bsdf->sample(shadingData, sampler, color, pdf);
+		if (pdf <= 0) return;
+
+		float cosTheta = std::max(fabsf(wi.dot(shadingData.sNormal)), 0.0f);
+
+		Ray ray;
+		ray.init(shadingData.x + (wi * EPSILON), wi);
+		IntersectionData intersectionData = scene->traverse(ray);
+
+		if (intersectionData.t < FLT_MAX) {
+			ShadingData hitData = scene->calculateShadingData(intersectionData, ray);
+			if (hitData.bsdf->isLight()) {
+				Colour emitted = hitData.bsdf->emit(hitData, hitData.wo);
+				
+				Vec3 dir = hitData.x - shadingData.x;
+				float distSq = dir.lengthSq();
+				float cosThetaLight = std::abs(dir.normalize().dot(hitData.sNormal));
+				float lightPDF = cosTheta * cosThetaLight / distSq;
+				
+				float weight = pdf / (pdf + lightPDF);
+				color = color * emitted * cosTheta;
+				
+				result = result + (color / pdf) * weight;
+			}
+		}
+	}
+
+
+	Colour computeDirectMIS(ShadingData shadingData, Sampler* sampler) {
+		if (shadingData.bsdf->isPureSpecular() == true) {
+        	return Colour(0.0f, 0.0f, 0.0f);
+    	}
+
+    	Colour result(0.0f, 0.0f, 0.0f);
+
+		lightSamplingMIS(shadingData, sampler, result);
+		brdfSamplingMIS(shadingData, sampler, result);
+	
+		return result;
+	}
+
 	Colour computeDirect(ShadingData shadingData, Sampler* sampler) {
 
 		// Is surface is specular we cannot computing direct lighting
@@ -124,7 +233,7 @@ public:
 		}
 
 		float pmf;
-		Light* sampledLight = scene->sampleLight(sampler, pmf);
+		Light* sampledLight = scene->sampleLightWeighted(sampler, pmf);
 
 		if (sampledLight->isArea())
 		{
@@ -211,7 +320,7 @@ public:
 			float pdf;
 			Vec3 worldDirection = shadingData.bsdf->sample(shadingData, sampler, indirect, pdf);
 
-			Colour directLight = computeDirect(shadingData, sampler);
+			Colour directLight = computeDirectMIS(shadingData, sampler);
 			//Colour output = (directLight) * pathThroughput;
 
 			float cosTheta = std::max(fabsf(worldDirection.dot(shadingData.sNormal)), 0.0f);
@@ -312,39 +421,43 @@ public:
 					// float px = x + 0.5f;
 					// float py = y + 0.5f;
 
-					// float px = x + samplers->next();
-					// float py = y + samplers->next();
-					// Ray ray = scene->camera.generateRay(px, py);
-					// // Colour col = viewNormals(ray);
-					// // Colour col = albedo(ray);
+					float px = x + samplers[tID].next();
+					float py = y + samplers[tID].next();
+					Ray ray = scene->camera.generateRay(px, py);
+					Colour normalCol = viewNormals(ray);
+					Colour albedoCol = albedo(ray);
 
-					// Colour pathThroughput(1.0f, 1.0f, 1.0f);
-					// Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
+					Colour pathThroughput(1.0f, 1.0f, 1.0f);
+					Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
 
-					// //Colour col = direct(ray, &samplers[0]);
-					// if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {
-					// 	continue;
-					// }
-					// film->splat(px, py, col);
+					if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {
+						continue;
+					}
 
-					lightTrace(&this->samplers[tID]);
+					film->splat(px, py, col);
+
+					if (!film->normalSet) {
+						film->setNormal(x, y, normalCol);
+						film->setAlbedo(x, y, albedoCol);
+					}
 				}
 			}
 
-			for (unsigned int y = yStart; y < yStart + TILE_SIZE; y++) {
-				if (y >= filmHeight) continue;
-				for (unsigned int x = xStart; x < xStart + TILE_SIZE; x++) {
-					if (x >= filmWidth) break;
-					unsigned char r, g, b;
-					film->tonemap(x, y, r, g, b);
-					canvas->draw(x, y, r, g, b);
-				}
-			}
+			// for (unsigned int y = yStart; y < yStart + TILE_SIZE; y++) {
+			// 	if (y >= filmHeight) continue;
+			// 	for (unsigned int x = xStart; x < xStart + TILE_SIZE; x++) {
+			// 		if (x >= filmWidth) break;
+			// 		unsigned char r, g, b;
+			// 		film->tonemap(x, y, r, g, b);
+			// 		//canvas->draw(x, y, r, g, b);
+			// 	}
+			// }
 		}
 	}
 
-	void parallelRender() {
+	void parallelRenderPathTracing(bool useDenoiser = true) {
 		film->incrementSPP();
+		film->usingDenoiser = useDenoiser;
 
 		std::atomic<unsigned int> tileID(0);
 		unsigned int filmWidth = film->width;
@@ -357,6 +470,25 @@ public:
 		for (int i=0; i<numProcs; i++) {
 			threads[i]->join();
 		}
+
+		if (useDenoiser) {
+			film->runDenoiserAndSetOutput();
+		}
+
+		for (unsigned int y = 0; y < filmHeight; y++) {
+			for (unsigned int x = 0; x < filmWidth; x++) {
+				unsigned char r, g, b;
+				if (useDenoiser) {
+					film->filmicTonemap(x, y, r, g, b);
+				} else {
+					film->filmicTonemapWithoutDenoiser(x, y, r, g, b);
+				}
+				canvas->draw(x, y, r, g, b);
+			}
+		}
+
+		film->normalSet = true;
+		film->albedoSet = true;
 	}
 
 	void threadProcessInstantRadiosity(unsigned int tID, std::atomic<unsigned int> &tileID, unsigned int filmWidth, unsigned int filmHeight) {
@@ -388,6 +520,14 @@ public:
 					float py = y + samplers->next();
 					
 					Ray ray = scene->camera.generateRay(px, py);
+					Colour normalCol = viewNormals(ray);
+					Colour albedoCol = albedo(ray);
+
+					if (!film->normalSet) {
+						film->setNormal(x, y, normalCol);
+						film->setAlbedo(x, y, albedoCol);
+					}
+
 					IntersectionData intersection = scene->traverse(ray);
 					ShadingData shadingData = scene->calculateShadingData(intersection, ray);
 
@@ -456,7 +596,7 @@ public:
 						
 						float distSqr = (shadingData.x - vpl.shadingData.x).lengthSq();
 
-						// This + 0.01f is a bias, to avoid singularity
+						// This clamp is a bias, to try to avoid singularity
 						float gTerm = (cosTheta * cosThetaVPL) / distSqr;
 						if (gTerm > 10.0f) gTerm = 10.0f;
 
@@ -478,23 +618,15 @@ public:
 					film->splat(px, py, col);
 				}
 			}
-
-			for (unsigned int y = yStart; y < yStart + TILE_SIZE; y++) {
-				if (y >= filmHeight) continue;
-				for (unsigned int x = xStart; x < xStart + TILE_SIZE; x++) {
-					if (x >= filmWidth) break;
-					unsigned char r, g, b;
-					film->tonemap(x, y, r, g, b);
-					canvas->draw(x, y, r, g, b);
-				}
-			}
-
 		}
+
+		film->normalSet = true;
 	}
 
-	void parallelRenderInstantRadiosity() {
+	void parallelRenderInstantRadiosity(bool useDenoiser = false) {
 		film->incrementSPP();
-		
+		film->usingDenoiser = useDenoiser;
+
 		vplSize = 0;
 		vpls.clear();
 		vpls.reserve(INST_RAD_N * MAX_DEPTH_PATH_TRACE * 3);
@@ -512,10 +644,28 @@ public:
 		for (int i=0; i<numProcs; i++) {
 			threads[i]->join();
 		}
+
+		if (useDenoiser) {
+			film->runDenoiserAndSetOutput();
+		}
+
+		for (unsigned int y = 0; y < filmHeight; y++) {
+			for (unsigned int x = 0; x < filmWidth; x++) {
+				unsigned char r, g, b;
+				if (useDenoiser) {
+					film->filmicTonemap(x, y, r, g, b);
+				} else {
+					film->filmicTonemapWithoutDenoiser(x, y, r, g, b);
+				}
+				canvas->draw(x, y, r, g, b);
+			}
+		}
+
+		film->normalSet = true;
+		film->albedoSet = true;
 	}
 
 	void render() {
-
 		film->incrementSPP();
 		for (unsigned int y = 0; y < film->height; y++) {
 			for (unsigned int x = 0; x < film->width; x++) {
@@ -546,8 +696,9 @@ public:
 		}
 	}
 
-	void renderLightTraceSequential() {
+	void renderLightTraceSequential(bool useDenoiser = false) {
 		film->incrementSPP();
+		film->usingDenoiser = useDenoiser;
 
 		// for (int i=0; i<1000; i++) {
 		// 	lightTrace(&this->samplers[0]);
@@ -556,13 +707,28 @@ public:
 		for (unsigned int y = 0; y < film->height; y++) {
 			for (unsigned int x = 0; x < film->width; x++) {
 				lightTrace(&this->samplers[0]);
+				if (useDenoiser) {
+					Ray ray = scene->camera.generateRay(x, y);
+					Colour normalCol = viewNormals(ray);
+					Colour albedoCol = albedo(ray);
+					film->setNormal(x, y, normalCol);
+					film->setAlbedo(x, y, albedoCol);
+				}
 			}
+		}
+
+		if (useDenoiser) {
+			film->runDenoiserAndSetOutput();
 		}
 
 		for (unsigned int y = 0; y < film->height; y++) {
 			for (unsigned int x = 0; x < film->width; x++) {
 				unsigned char r, g, b;
-				film->tonemap(x, y, r, g, b);
+				if (useDenoiser) {
+					film->tonemap(x, y, r, g, b);
+				} else {
+					film->filmicTonemapWithoutDenoiser(x, y, r, g, b);
+				}
 				canvas->draw(x, y, r, g, b);
 			}
 		}
@@ -601,7 +767,7 @@ public:
 
 	void lightTrace(Sampler *sampler) {
 		float pmf;
-		Light* sampledLight = scene->sampleLight(sampler, pmf);
+		Light* sampledLight = scene->sampleLightWeighted(sampler, pmf);
 
 		if (sampledLight->isArea()) {
 			float pdfPosition;

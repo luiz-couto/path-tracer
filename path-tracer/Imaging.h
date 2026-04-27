@@ -7,6 +7,7 @@
 #define __STDC_LIB_EXT1__
 #include "stb_image_write.h"
 #include <algorithm>
+#include <OpenImageDenoise/oidn.hpp>
 
 // Stop warnings about buffer overruns if size is zero. Size should never be zero and if it is the code handles it.
 #pragma warning( disable : 6386)
@@ -140,12 +141,10 @@ class BoxFilter : public ImageFilter
 {
 public:
 	float filter(float x, float y) const {
-		// if (fabsf(x) < 0.5f && fabs(y) < 0.5f)
-		// {
-		// 	return 1.0f;
-		// }
-		// return 0;
-		return 1.0f;
+		if (fabsf(x) <= 0.5f && fabsf(y) <= 0.5f) {
+			return 1.0f;
+		}
+		return 0.0f;
 	}
 	int size() const
 	{
@@ -168,7 +167,6 @@ public:
 		return std::expf(-alpha * (d * d)) - std::expf(-alpha * (radius * radius));
 	}
 
-	// change this later
 	int size() const {
 		return int(GAUSSIAN_RADIUS + 0.5f);
 	}
@@ -178,12 +176,23 @@ class Film
 {
 public:
 	Colour* film;
+	Colour* filmNormals;
+	Colour* filmAlbedos;
+	Colour* output;
+
+	bool normalSet = false;
+	bool albedoSet = false;
+
 	unsigned int width;
 	unsigned int height;
 	int SPP;
 	ImageFilter* filter;
 
+	bool usingDenoiser = true;
+
 	void splat(const float x, const float y, const Colour& L) {
+		if (usingDenoiser) this->filter = new BoxFilter();
+		
 		//film[(int(y) * width) + int(x)] = L;
 		float filterWeights[25]; // Storage to cache weights
 		unsigned int indices[25]; // Store indices to minimize computations
@@ -205,6 +214,43 @@ public:
 		for (int i = 0; i < used; i++) {
 			film[indices[i]] = film[indices[i]] + (L * filterWeights[i] / total);
 		}
+	}
+
+	void setNormal(const float x, const float y, const Colour& L) {
+		filmNormals[(int(y) * width) + int(x)] = L;
+	}
+
+	void setAlbedo(const float x, const float y, const Colour& L) {
+		filmAlbedos[(int(y) * width) + int(x)] = L;
+	}
+
+	void runDenoiserAndSetOutput() {
+		Colour* denoiserInput = new Colour[width * height];
+		for (unsigned int i = 0; i < (width * height); i++) {
+			denoiserInput[i] = film[i] / (float)SPP;
+		}
+
+		oidn::DeviceRef device = oidn::newDevice(oidn::DeviceType::CPU);
+		device.commit();
+		
+		oidn::FilterRef filter = device.newFilter("RT");
+		filter.setImage("color", denoiserInput, oidn::Format::Float3, width, height);
+		filter.setImage("albedo", filmAlbedos, oidn::Format::Float3, width, height);
+		filter.setImage("normal", filmNormals, oidn::Format::Float3, width, height);
+		filter.setImage("output", output, oidn::Format::Float3, width, height);
+		filter.set("hdr", true);
+		
+		filter.commit();
+		filter.execute();
+
+		const char* errorMessage;
+		if (device.getError(errorMessage) != oidn::Error::None) {
+			std::cout << "OIDN execute error: " << errorMessage << std::endl;
+			delete[] denoiserInput;
+			return;
+		}
+
+		delete[] denoiserInput;
 	}
 
 	void tonemap(int x, int y, unsigned char& r, unsigned char& g, unsigned char& b, float exposure = 1.0f) {
@@ -229,6 +275,32 @@ public:
 
 	void filmicTonemap(int x, int y, unsigned char& r, unsigned char& g, unsigned char& b, float exposure = 1.0f) {
 		// Use average color per pixel (accumulated / SPP)
+		Colour curr = output[(y * width) + x];
+		//if (SPP > 0) curr = curr / (float)SPP;
+
+		float expFac = 1 / 2.2;
+		float W = 11.2;
+		float CW = filmicCFunc(W);
+		float CR = filmicCFunc(curr.r);
+		float rOut = powf((CR / CW), expFac);
+
+		float CG = filmicCFunc(curr.g);
+		float gOut = powf((CG / CW), expFac);
+
+		float CB = filmicCFunc(curr.b);
+		float bOut = powf((CB / CW), expFac);
+
+		r = std::clamp(rOut, 0.f, 1.f) * 255;
+		g = std::clamp(gOut, 0.f, 1.f) * 255;
+		b = std::clamp(bOut, 0.f, 1.f) * 255;
+
+		//std::cout << "R: " << rOut << ", G: " << gOut << ", B: " << bOut << std::endl;
+
+		//film[(y * width) + x] = Colour(rOut, gOut, bOut);
+	}
+
+	void filmicTonemapWithoutDenoiser(int x, int y, unsigned char& r, unsigned char& g, unsigned char& b, float exposure = 1.0f) {
+		// Use average color per pixel (accumulated / SPP)
 		Colour curr = film[(y * width) + x];
 		if (SPP > 0) curr = curr / (float)SPP;
 
@@ -250,31 +322,41 @@ public:
 	}
 
 	// Do not change any code below this line
-	void init(int _width, int _height, ImageFilter* _filter)
-	{
+	void init(int _width, int _height, ImageFilter* _filter) {
 		width = _width;
 		height = _height;
 		film = new Colour[width * height];
+		filmNormals = new Colour[width * height];
+		filmAlbedos = new Colour[width * height];
+		output = new Colour[width * height];
+
 		clear();
 		filter = _filter;
 	}
-	void clear()
-	{
+
+	void clear() {
 		memset(film, 0, width * height * sizeof(Colour));
+		memset(filmNormals, 0, width * height * sizeof(Colour));
+		memset(filmAlbedos, 0, width * height * sizeof(Colour));
+		memset(output, 0, width * height * sizeof(Colour));
+
+		normalSet = false;
+		albedoSet = false;
+
 		SPP = 0;
 	}
-	void incrementSPP()
-	{
+
+	void incrementSPP() {
 		SPP++;
 	}
-	void save(std::string filename)
-	{
+
+	void save(std::string filename) {
 		Colour* hdrpixels = new Colour[width * height];
 		for (unsigned int i = 0; i < (width * height); i++)
 		{
 			hdrpixels[i] = film[i] / (float)SPP;
 		}
-		stbi_write_hdr(filename.c_str(), width, height, 3, (float*)hdrpixels);
+		stbi_write_hdr(filename.c_str(), width, height, 3, (float*)output);
 		delete[] hdrpixels;
 	}
 };

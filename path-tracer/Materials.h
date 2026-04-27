@@ -172,17 +172,17 @@ public:
 	{
 		// Add correct sampling code here
 		Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
-		pdf = PDF(shadingData, wi);
 		reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
 		wi = shadingData.frame.toWorld(wi);
+		pdf = PDF(shadingData, wi);
 		return wi;
 	}
 	Colour evaluate(const ShadingData& shadingData, const Vec3& wi) {
 		return albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
 	}
 	float PDF(const ShadingData& shadingData, const Vec3& wi) {
-		//Vec3 localWI = shadingData.frame.toLocal(wi);
-		float cosTheta = SamplingDistributions::cosineHemispherePDF(wi);
+		Vec3 localWi = shadingData.frame.toLocal(wi);
+		float cosTheta = SamplingDistributions::cosineHemispherePDF(localWi);
 		return cosTheta;
 	}
 	bool isPureSpecular()
@@ -276,11 +276,13 @@ public:
 
 		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
 
-
 		Vec3 wm = Vec3(sinf(thetaM) * cosf(phiM), sinf(thetaM) * sinf(phiM), cosf(thetaM));
 		Vec3 wi = -woLocal +  (wm * (2 * wm.dot(woLocal)));
+		Vec3 wiWorld = shadingData.frame.toWorld(wi);
+
 		pdf = (ShadingHelper::Dggx(wm, alpha) * cosf(thetaM)) / (4 * wm.dot(woLocal));
-		return shadingData.frame.toWorld(wi);
+		reflectedColour = evaluate(shadingData, wiWorld);
+		return wiWorld;
 	}
 
 	Colour evaluate(const ShadingData& shadingData, const Vec3& wi) {
@@ -304,10 +306,13 @@ public:
 		Vec3 localWo = shadingData.frame.toLocal(shadingData.wo);
 
 		Vec3 h = (localWi + localWo).normalize();
+		float woDotH = localWo.dot(h);
+		if (woDotH <= 0.0f) return 0.0f;
+		
 		float dWm = ShadingHelper::Dggx(h, alpha);
 		float cosThetaM = h.z;
 
-		float pdf = (dWm * cosThetaM) / (4 * localWo.dot(h));
+		float pdf = (dWm * cosThetaM) / (4 * woDotH);
 		return pdf;
 	}
 

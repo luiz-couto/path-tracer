@@ -133,9 +133,27 @@ public:
 		return lights[(int)(sampler->next() * lights.size())];
 	}
 
-	// Can implement the weighted sampling of lights
 	Light* sampleLightWeighted(Sampler* sampler, float& pmf) {
-		//lights[0]->totalIntegratedPower();
+		float totalPower = 0;
+		for (int i=0; i<lights.size(); i++) {
+        	totalPower += lights[i]->totalIntegratedPower();
+    	}
+
+		if (totalPower <= 0) return sampleLight(sampler, pmf);
+
+		float sample = sampler->next() * totalPower;
+		float curr = 0;
+
+		for (int i=0; i<lights.size(); i++) {
+			curr += lights[i]->totalIntegratedPower();
+			if (sample <= curr) {
+				pmf = lights[i]->totalIntegratedPower() / totalPower;
+				return lights[i];
+			}
+    	}
+
+		// Fallback
+		return sampleLight(sampler, pmf);
 	}
 
 	// Do not modify any code below this line

@@ -430,13 +430,6 @@ public:
 					Colour pathThroughput(1.0f, 1.0f, 1.0f);
 					Colour col = pathTrace(ray, pathThroughput, 0, &samplers[tID]);
 
-					// Maybe I can remove this after MIS?
-					// float maxBrightness = 10.0f;
-					// col.r = std::min(col.r, maxBrightness);
-					// col.g = std::min(col.g, maxBrightness);
-					// col.b = std::min(col.b, maxBrightness);
-
-					//Colour col = direct(ray, &samplers[0]);
 					if (std::isnan(col.r) || std::isnan(col.g) || std::isnan(col.b)) {
 						continue;
 					}
@@ -447,8 +440,6 @@ public:
 						film->setNormal(px, py, normalCol);
 						film->setAlbedo(px, py, albedoCol);
 					}
-
-					//lightTrace(&this->samplers[tID]);
 				}
 			}
 
@@ -464,7 +455,7 @@ public:
 		}
 	}
 
-	void parallelRender() {
+	void parallelRenderPathTracing() {
 		film->incrementSPP();
 
 		std::atomic<unsigned int> tileID(0);
@@ -628,7 +619,8 @@ public:
 
 	void parallelRenderInstantRadiosity() {
 		film->incrementSPP();
-		
+		film->usingDenoiser = false;
+
 		vplSize = 0;
 		vpls.clear();
 		vpls.reserve(INST_RAD_N * MAX_DEPTH_PATH_TRACE * 3);

@@ -11,51 +11,51 @@ C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Geometry.h(456,27):
 C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Geometry.h(493,27): warning C4018: '<': signed/unsigned mismatch
   (compiling source file 'main.cpp')
   
-C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(203,23): warning C4018: '<': signed/unsigned mismatch
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(206,23): warning C4018: '<': signed/unsigned mismatch
   (compiling source file 'main.cpp')
   
-C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(203,48): warning C4018: '<': signed/unsigned mismatch
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(206,48): warning C4018: '<': signed/unsigned mismatch
   (compiling source file 'main.cpp')
   
-C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(211,21): warning C4018: '<': signed/unsigned mismatch
-  (compiling source file 'main.cpp')
-  
-C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(259,11): warning C4305: 'initializing': truncation from 'double' to 'float'
-  (compiling source file 'main.cpp')
-  
-C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(261,11): warning C4305: 'initializing': truncation from 'double' to 'float'
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(214,21): warning C4018: '<': signed/unsigned mismatch
   (compiling source file 'main.cpp')
   
 C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(262,11): warning C4305: 'initializing': truncation from 'double' to 'float'
   (compiling source file 'main.cpp')
   
-C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(263,11): warning C4305: 'initializing': truncation from 'double' to 'float'
-  (compiling source file 'main.cpp')
-  
 C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(264,11): warning C4305: 'initializing': truncation from 'double' to 'float'
   (compiling source file 'main.cpp')
   
-C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(278,16): warning C4305: 'initializing': truncation from 'double' to 'float'
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(265,11): warning C4305: 'initializing': truncation from 'double' to 'float'
   (compiling source file 'main.cpp')
   
-C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(279,11): warning C4305: 'initializing': truncation from 'double' to 'float'
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(266,11): warning C4305: 'initializing': truncation from 'double' to 'float'
   (compiling source file 'main.cpp')
   
-C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(304,16): warning C4305: 'initializing': truncation from 'double' to 'float'
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(267,11): warning C4305: 'initializing': truncation from 'double' to 'float'
   (compiling source file 'main.cpp')
   
-C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(305,11): warning C4305: 'initializing': truncation from 'double' to 'float'
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(281,16): warning C4305: 'initializing': truncation from 'double' to 'float'
+  (compiling source file 'main.cpp')
+  
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(282,11): warning C4305: 'initializing': truncation from 'double' to 'float'
+  (compiling source file 'main.cpp')
+  
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(307,16): warning C4305: 'initializing': truncation from 'double' to 'float'
+  (compiling source file 'main.cpp')
+  
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(308,11): warning C4305: 'initializing': truncation from 'double' to 'float'
   (compiling source file 'main.cpp')
   
 C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Scene.h(86,42): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
   (compiling source file 'main.cpp')
   
-C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Renderer.h(576,21): warning C4018: '<': signed/unsigned mismatch
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Renderer.h(567,21): warning C4018: '<': signed/unsigned mismatch
   (compiling source file 'main.cpp')
   
   Generating code
-  5 of 2285 functions ( 0.2%) were compiled, the rest were copied from previous compilation.
-    4 functions were new in current compilation
-    29 functions had inline decision re-evaluated but remain unchanged
+  124 of 2288 functions ( 5.4%) were compiled, the rest were copied from previous compilation.
+    47 functions were new in current compilation
+    148 functions had inline decision re-evaluated but remain unchanged
   Finished generating code
   path-tracer.vcxproj -> C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\x64\Release\path-tracer.exe

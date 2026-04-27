@@ -167,7 +167,6 @@ public:
 		return std::expf(-alpha * (d * d)) - std::expf(-alpha * (radius * radius));
 	}
 
-	// change this later
 	int size() const {
 		return int(GAUSSIAN_RADIUS + 0.5f);
 	}
@@ -189,7 +188,11 @@ public:
 	int SPP;
 	ImageFilter* filter;
 
+	bool usingDenoiser = true;
+
 	void splat(const float x, const float y, const Colour& L) {
+		if (usingDenoiser) this->filter = new BoxFilter();
+		
 		//film[(int(y) * width) + int(x)] = L;
 		float filterWeights[25]; // Storage to cache weights
 		unsigned int indices[25]; // Store indices to minimize computations

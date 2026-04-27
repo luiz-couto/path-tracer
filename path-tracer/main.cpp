@@ -116,10 +116,12 @@ int main(int argc, char* argv[]) {
 		///  CHANGE HERE THE ALGORITHM  ///
 		///				V				///
 		///////////////////////////////////
+
+		bool useDenoiser = true;
 		
 		//rt.parallelRenderInstantRadiosity();
 		//rt.parallelRenderPathTracing();
-		rt.renderLightTraceSequential();
+		rt.renderLightTraceSequential(useDenoiser);
 		
 		///////////////////////////////////
 		///				^				///

@@ -54,7 +54,7 @@ C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Renderer.h(567,21):
   (compiling source file 'main.cpp')
   
   Generating code
-  1 of 2186 functions (<0.1%) were compiled, the rest were copied from previous compilation.
+  2 of 2209 functions (<0.1%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
     16 functions had inline decision re-evaluated but remain unchanged
   Finished generating code

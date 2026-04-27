@@ -581,7 +581,7 @@ public:
 						
 						float distSqr = (shadingData.x - vpl.shadingData.x).lengthSq();
 
-						// This + 0.01f is a bias, to avoid singularity
+						// This clamp is a bias, to try to avoid singularity
 						float gTerm = (cosTheta * cosThetaVPL) / distSqr;
 						if (gTerm > 10.0f) gTerm = 10.0f;
 
@@ -672,9 +672,9 @@ public:
 		}
 	}
 
-	void renderLightTraceSequential() {
+	void renderLightTraceSequential(bool useDenoiser = false) {
 		film->incrementSPP();
-		film->usingDenoiser = false;
+		film->usingDenoiser = useDenoiser;
 
 		// for (int i=0; i<1000; i++) {
 		// 	lightTrace(&this->samplers[0]);
@@ -683,13 +683,26 @@ public:
 		for (unsigned int y = 0; y < film->height; y++) {
 			for (unsigned int x = 0; x < film->width; x++) {
 				lightTrace(&this->samplers[0]);
+				if (useDenoiser) {
+					Ray ray = scene->camera.generateRay(x, y);
+					Colour normalCol = viewNormals(ray);
+					Colour albedoCol = albedo(ray);
+					film->setNormal(x, y, normalCol);
+					film->setAlbedo(x, y, albedoCol);
+				}
 			}
 		}
+
+		film->runDenoiserAndSetOutput();
 
 		for (unsigned int y = 0; y < film->height; y++) {
 			for (unsigned int x = 0; x < film->width; x++) {
 				unsigned char r, g, b;
-				film->filmicTonemapWithoutDenoiser(x, y, r, g, b);
+				if (useDenoiser) {
+					film->tonemap(x, y, r, g, b);
+				} else {
+					film->filmicTonemapWithoutDenoiser(x, y, r, g, b);
+				}
 				canvas->draw(x, y, r, g, b);
 			}
 		}

@@ -41,6 +41,12 @@ C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(278,16): 
 C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(279,11): warning C4305: 'initializing': truncation from 'double' to 'float'
   (compiling source file 'main.cpp')
   
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(304,16): warning C4305: 'initializing': truncation from 'double' to 'float'
+  (compiling source file 'main.cpp')
+  
+C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Imaging.h(305,11): warning C4305: 'initializing': truncation from 'double' to 'float'
+  (compiling source file 'main.cpp')
+  
 C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Scene.h(86,42): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
   (compiling source file 'main.cpp')
   
@@ -48,8 +54,8 @@ C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\Renderer.h(576,21):
   (compiling source file 'main.cpp')
   
   Generating code
-  1 of 2264 functions (<0.1%) were compiled, the rest were copied from previous compilation.
-    0 functions were new in current compilation
-    16 functions had inline decision re-evaluated but remain unchanged
+  5 of 2285 functions ( 0.2%) were compiled, the rest were copied from previous compilation.
+    4 functions were new in current compilation
+    29 functions had inline decision re-evaluated but remain unchanged
   Finished generating code
   path-tracer.vcxproj -> C:\Users\u5706606\Documents\projects\path-tracer\path-tracer\x64\Release\path-tracer.exe

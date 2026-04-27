@@ -46,7 +46,7 @@ public:
 		scene = _scene;
 		canvas = _canvas;
 		film = new Film();
-		film->init((unsigned int)scene->camera.width, (unsigned int)scene->camera.height, new BoxFilter());
+		film->init((unsigned int)scene->camera.width, (unsigned int)scene->camera.height, new GaussianFilter());
 		SYSTEM_INFO sysInfo;
 		GetSystemInfo(&sysInfo);
 		numProcs = sysInfo.dwNumberOfProcessors;
@@ -618,7 +618,7 @@ public:
 				for (unsigned int x = xStart; x < xStart + TILE_SIZE; x++) {
 					if (x >= filmWidth) break;
 					unsigned char r, g, b;
-					film->tonemap(x, y, r, g, b);
+					film->filmicTonemapWithoutDenoiser(x, y, r, g, b);
 					canvas->draw(x, y, r, g, b);
 				}
 			}

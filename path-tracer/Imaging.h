@@ -296,6 +296,28 @@ public:
 		//film[(y * width) + x] = Colour(rOut, gOut, bOut);
 	}
 
+	void filmicTonemapWithoutDenoiser(int x, int y, unsigned char& r, unsigned char& g, unsigned char& b, float exposure = 1.0f) {
+		// Use average color per pixel (accumulated / SPP)
+		Colour curr = film[(y * width) + x];
+		if (SPP > 0) curr = curr / (float)SPP;
+
+		float expFac = 1 / 2.2;
+		float W = 11.2;
+		float CW = filmicCFunc(W);
+		float CR = filmicCFunc(curr.r);
+		float rOut = powf((CR / CW), expFac);
+
+		float CG = filmicCFunc(curr.g);
+		float gOut = powf((CG / CW), expFac);
+
+		float CB = filmicCFunc(curr.b);
+		float bOut = powf((CB / CW), expFac);
+
+		r = std::clamp(rOut, 0.f, 1.f) * 255;
+		g = std::clamp(gOut, 0.f, 1.f) * 255;
+		b = std::clamp(bOut, 0.f, 1.f) * 255;
+	}
+
 	// Do not change any code below this line
 	void init(int _width, int _height, ImageFilter* _filter) {
 		width = _width;

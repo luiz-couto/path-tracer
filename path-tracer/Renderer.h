@@ -674,6 +674,7 @@ public:
 
 	void renderLightTraceSequential() {
 		film->incrementSPP();
+		film->usingDenoiser = false;
 
 		// for (int i=0; i<1000; i++) {
 		// 	lightTrace(&this->samplers[0]);
@@ -688,7 +689,7 @@ public:
 		for (unsigned int y = 0; y < film->height; y++) {
 			for (unsigned int x = 0; x < film->width; x++) {
 				unsigned char r, g, b;
-				film->tonemap(x, y, r, g, b);
+				film->filmicTonemapWithoutDenoiser(x, y, r, g, b);
 				canvas->draw(x, y, r, g, b);
 			}
 		}

@@ -437,8 +437,8 @@ public:
 					film->splat(px, py, col);
 
 					if (!film->normalSet) {
-						film->setNormal(px, py, normalCol);
-						film->setAlbedo(px, py, albedoCol);
+						film->setNormal(x, y, normalCol);
+						film->setAlbedo(x, y, albedoCol);
 					}
 				}
 			}
@@ -520,6 +520,14 @@ public:
 					float py = y + samplers->next();
 					
 					Ray ray = scene->camera.generateRay(px, py);
+					Colour normalCol = viewNormals(ray);
+					Colour albedoCol = albedo(ray);
+
+					if (!film->normalSet) {
+						film->setNormal(x, y, normalCol);
+						film->setAlbedo(x, y, albedoCol);
+					}
+
 					IntersectionData intersection = scene->traverse(ray);
 					ShadingData shadingData = scene->calculateShadingData(intersection, ray);
 
@@ -610,23 +618,14 @@ public:
 					film->splat(px, py, col);
 				}
 			}
-
-			for (unsigned int y = yStart; y < yStart + TILE_SIZE; y++) {
-				if (y >= filmHeight) continue;
-				for (unsigned int x = xStart; x < xStart + TILE_SIZE; x++) {
-					if (x >= filmWidth) break;
-					unsigned char r, g, b;
-					film->filmicTonemapWithoutDenoiser(x, y, r, g, b);
-					canvas->draw(x, y, r, g, b);
-				}
-			}
-
 		}
+
+		film->normalSet = true;
 	}
 
-	void parallelRenderInstantRadiosity() {
+	void parallelRenderInstantRadiosity(bool useDenoiser = false) {
 		film->incrementSPP();
-		film->usingDenoiser = false;
+		film->usingDenoiser = useDenoiser;
 
 		vplSize = 0;
 		vpls.clear();
@@ -645,10 +644,28 @@ public:
 		for (int i=0; i<numProcs; i++) {
 			threads[i]->join();
 		}
+
+		if (useDenoiser) {
+			film->runDenoiserAndSetOutput();
+		}
+
+		for (unsigned int y = 0; y < filmHeight; y++) {
+			for (unsigned int x = 0; x < filmWidth; x++) {
+				unsigned char r, g, b;
+				if (useDenoiser) {
+					film->filmicTonemap(x, y, r, g, b);
+				} else {
+					film->filmicTonemapWithoutDenoiser(x, y, r, g, b);
+				}
+				canvas->draw(x, y, r, g, b);
+			}
+		}
+
+		film->normalSet = true;
+		film->albedoSet = true;
 	}
 
 	void render() {
-
 		film->incrementSPP();
 		for (unsigned int y = 0; y < film->height; y++) {
 			for (unsigned int x = 0; x < film->width; x++) {
